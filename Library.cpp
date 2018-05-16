@@ -291,19 +291,22 @@ void remove_dummy_bvar(Term *&tm)
 Term *_beta(Term *tm, Term *sub, int scope)
 {
     std::tuple<Term *, Term *, int> key(tm, sub, scope);
-    auto it = kn::beta_map.find(key);
-    if (it != kn::beta_map.end()) return it->second;
+    auto it = kn::beta_map.hmap.find(key);
+    if (it != kn::beta_map.hmap.end()) return it->second;
 
+    Term *ret;
     if (tm->is_comb())
-        return kn::beta_map[key] = kn::mk_comb(_beta(tm->rator(), sub, scope), _beta(tm->rand(), sub, scope));
+        ret = kn::mk_comb(_beta(tm->rator(), sub, scope), _beta(tm->rand(), sub, scope));
     else if (tm->is_abs())
-        return kn::beta_map[key] = kn::mk_abs(tm->ty->dom(), _beta(tm->bod(), sub, scope + 1));
+        ret = kn::mk_abs(tm->ty->dom(), _beta(tm->bod(), sub, scope + 1));
     else if (tm->idx == scope)
-        return kn::beta_map[key] = kn::lift(sub, scope);
+        ret = kn::lift(sub, scope);
     else if (tm->idx > scope)
-        return kn::beta_map[key] = kn::mk_var(tm->ty, tm->idx - 1);
+        ret = kn::mk_var(tm->ty, tm->idx - 1);
     else
-        return kn::beta_map[key] = tm;
+        ret = tm;
+    kn::beta_map.insert(key, ret);
+    return ret;
 }
 
 Term *application(Term *tm1, Term *tm2)
@@ -318,23 +321,23 @@ Term *beta_eta_term(Term *tm)
     if (tm->is_leaf()) return tm;
 
     // this hash method is very naive
-    auto it = kn::nform_map.find(tm);
-    if (it != kn::nform_map.end()) return it->second;
+    auto it = kn::nform_map.hmap.find(tm);
+    if (it != kn::nform_map.hmap.end()) return it->second;
 
     if (tm->is_comb()) {
         Term *tm1 = beta_eta_term(tm->rator());
-        if (tm1->is_abs())
-            return kn::nform_map[tm] = beta_eta_term(application(tm1, tm->rand()));
-        else
-            return kn::nform_map[tm] = kn::mk_comb(tm1, beta_eta_term(tm->rand()));
+        Term *ret = tm1->is_abs() ? beta_eta_term(application(tm1, tm->rand()))
+                                  : kn::mk_comb(tm1, beta_eta_term(tm->rand()));
+        kn::nform_map.insert(tm, ret);
+        return ret;
     }
     else {
         Term *bod = beta_eta_term(tm->bod());
         // eta-reduction
-        if (_is_eta(bod))
-            return kn::nform_map[tm] = kn::lift(bod->rator(), -1);
-        else
-            return kn::nform_map[tm] = kn::mk_abs(tm->ty->dom(), bod);
+        Term *ret = _is_eta(bod) ? kn::lift(bod->rator(), -1)
+                                 : kn::mk_abs(tm->ty->dom(), bod);
+        kn::nform_map.insert(tm, ret);
+        return ret;
     }
 }
 

@@ -43,22 +43,10 @@ namespace kn
     {
         std::vector<T *> pool;
         std::unordered_map<T, T *, typename T::hash> hmap;
-        //std::map<T, T*> hmap;
         std::vector<size_t> ckpt;
 
         T *insert(T t)
         {
-            /*
-            auto it = hmap.lower_bound(t);
-            if (it != hmap.end() && it->first == t)
-                return it->second;
-            else {
-                T *cnt = new T(t);
-                pool.push_back(cnt);
-                hmap.emplace_hint(it, t, cnt);
-                return cnt;
-            }
-            */
             auto it = hmap.find(t);
             if (it != hmap.end())
                 return it->second;
@@ -106,6 +94,35 @@ namespace kn
         }
     };
 
+    template<class T1, class T2, typename T3>
+    struct PersistentMap
+    {
+        std::vector<T1> pool;
+        std::unordered_map<T1, T2, T3> hmap;
+        std::vector<size_t> ckpt;
+
+        void insert(const T1 &key, const T2 &val)
+        {
+            hmap.emplace(key, val);
+            pool.push_back(key);
+        }
+
+        void add_ckpt()
+        {
+            ckpt.push_back(pool.size());
+        }
+
+        void rec_ckpt()
+        {
+            assert(!ckpt.empty());
+
+            auto n = ckpt.back();
+            ckpt.pop_back();
+            for (auto it = pool.begin() + n; it != pool.end(); ++it) hmap.erase(*it);
+            pool.resize(n);
+        }
+    };
+
     extern PointerPool<Type> type_pointer_pool;
     extern PointerPool<Term> term_pointer_pool;
 
@@ -128,8 +145,6 @@ namespace kn
 
     extern Type *const bool_ty;
 
-    extern std::unordered_map<Term *, Term *> nform_map;
-
     struct tuple_hash
     {
         template <class T1, class T2, class T3>
@@ -141,9 +156,15 @@ namespace kn
             return (h1 << 2) ^ (h2 << 1) ^ h3;
         }
     };
-    extern std::unordered_map<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
 
-    extern std::unordered_map<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
+    extern PersistentMap<Term *, Term *, std::hash<Term *>> nform_map;
+
+    extern PersistentMap<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
+
+    extern PersistentMap<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
+
+    void save_maps();
+    void load_maps();
 }
 
 #endif //BPRIL_KERNEL_H

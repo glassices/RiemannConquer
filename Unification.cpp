@@ -284,7 +284,7 @@ bool _project(Term *fv, int k, Term *&sub, ty_instor &tyins)
 
 bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, int dep, std::pair<ty_instor, tm_instor> &res)
 {
-    if (dep >= 20) return false;
+    if (dep >= 10) return false;
 
     ty_instor _tyins;
     tm_instor _tmins;
@@ -298,9 +298,9 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     //std::cout << "after simplify:    " << obj << std::endl;
     update_instor(_tyins, _tmins, tyins, tmins);
 
-    for (auto &e : obj) if (e.first->size > 50 || e.second->size > 50) return false;
-    for (auto &e : rsl) if (e.first->size > 50) return false;
-    for (auto &e : tmins) if (e.second->size > 50) return false;
+    for (auto &e : obj) if (e.first->size > 30 || e.second->size > 30) return false;
+    for (auto &e : rsl) if (e.first->size > 30) return false;
+    for (auto &e : tmins) if (e.second->size > 30) return false;
 
     // naive choose a rigid-flex pair, this might be an interesting ML prediction task
     for (auto &e : obj) {
@@ -376,6 +376,7 @@ bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res
     kn::term_name_pool.add_ckpt();
     kn::type_pointer_pool.add_ckpt();
     kn::term_pointer_pool.add_ckpt();
+    kn::save_maps();
 
     //cout << "Current task is " << endl << obj << endl << rsl << endl;
     obj_type _obj(obj);
@@ -428,13 +429,11 @@ bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res
     }
 
     // clear hash maps
-    clock_t t0 = clock();
-    cout << kn::nform_map.size() << '/' << kn::nform_map.bucket_count() << ' ' << kn::beta_map.size() << '/' << kn::beta_map.bucket_count() << ' ' << kn::lift_map.size() << '/' << kn::lift_map.bucket_count() << endl;
-    kn::nform_map.clear();
-    kn::beta_map.clear();
-    kn::lift_map.clear();
-    clock_t t1 = clock();
-    debug_t += t1 - t0;
+    //clock_t t0 = clock();
+    kn::load_maps();
+    cout << "finish " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << endl;
+    //clock_t t1 = clock();
+    //debug_t += t1 - t0;
 
     return ok;
 }

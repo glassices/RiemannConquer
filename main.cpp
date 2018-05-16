@@ -78,7 +78,6 @@ void trivial_test()
     cout << "f    " << tm1 << "    " << tm2 << "    " << application(tm1, tm2) << "    " << kn::lift(tm2, 0) << endl;
     Term *res = beta_eta_term(tm);
     cout << res << ' ' << res->ty << endl;
-    cout << kn::nform_map[tm] << endl;
 }
 
 void simplify_test()
@@ -298,7 +297,7 @@ void searcher_test()
 
     Type *booo = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
-    search(p, 4);
+    search(p, 6);
     cout << debug_t << endl;
     puts("--------------------------------");
 

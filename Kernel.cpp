@@ -66,7 +66,6 @@ namespace kn {
     PointerPool<Term> term_pointer_pool;
 
 
-
     Type *mk_atom(int idx)
     {
         return type_pointer_pool.insert(Type(false, nullptr, nullptr, idx));
@@ -144,13 +143,13 @@ namespace kn {
             return tm->idx < scope ? tm : mk_var(tm->ty, tm->idx + inc);
         else {
             std::tuple<Term *, int, int> key(tm, inc, scope);
-            auto it = lift_map.find(key);
-            if (it != lift_map.end()) return it->second;
+            auto it = lift_map.hmap.find(key);
+            if (it != lift_map.hmap.end()) return it->second;
 
-            if (tm->tag == 0)
-                return lift_map[key] = mk_comb(lift(tm->p1, inc, scope), lift(tm->p2, inc, scope));
-            else
-                return lift_map[key] = mk_abs(tm->ty->dom(), lift(tm->p1, inc, scope + 1));
+            Term *ret = tm->tag == 0 ? mk_comb(lift(tm->p1, inc, scope), lift(tm->p2, inc, scope))
+                                     : mk_abs(tm->ty->dom(), lift(tm->p1, inc, scope + 1));
+            lift_map.insert(key, ret);
+            return ret;
         }
     }
 
@@ -163,8 +162,22 @@ namespace kn {
 
     Type *const bool_ty = mk_atom(0);
 
-    std::unordered_map<Term *, Term *> nform_map;
-    std::unordered_map<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
-    std::unordered_map<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
+    PersistentMap<Term *, Term *, std::hash<Term *>> nform_map;
+    PersistentMap<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
+    PersistentMap<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
+
+    void save_maps()
+    {
+        nform_map.add_ckpt();
+        beta_map.add_ckpt();
+        lift_map.add_ckpt();
+    }
+
+    void load_maps()
+    {
+        nform_map.rec_ckpt();
+        beta_map.rec_ckpt();
+        lift_map.rec_ckpt();
+    }
 }
 
