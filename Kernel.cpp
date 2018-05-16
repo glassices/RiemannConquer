@@ -10,7 +10,8 @@ namespace kn {
     const int HI_CONST_TYPE = 128;
 
     const int LO_CONST_TERM = 128;
-    const int HI_CONST_TERM = 256;
+    const int MD_CONST_TERM = 256;
+    const int HI_CONST_TERM = 512;
 
 
     NamePool::NamePool(int _ptr) : ptr(_ptr) {}

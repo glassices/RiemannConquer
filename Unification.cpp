@@ -110,6 +110,8 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * since no type variable is introduces, feel free to merge tyins
      */
 
+    if (dep >= 50) return false;
+
     ty_instor ret_tyins;
     std::vector<Type *> bvs1, bvs2;
     Term *hs1, *hs2;
@@ -122,7 +124,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     }
 
     /*
-    cout << dep << "before decomposition" << endl;
+    cout << "before decomposition" << endl;
     for (auto &e : obj) cout << e << endl;
     cout << "-----------------------" << endl;
     */
@@ -150,7 +152,15 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         decompose(it->first, bvs1, hs1, args1);
         decompose(it->second, bvs2, hs2, args2);
 
-        if (kn::is_fvar(hs1, static_cast<int>(bvs1.size())) || kn::is_fvar(hs2, static_cast<int>(bvs2.size())))
+        // move first rigid to the second
+        if (!kn::is_fvar(hs1, static_cast<int>(bvs1.size()))) {
+            std::swap(it->first, it->second);
+            bvs1.swap(bvs2);
+            std::swap(hs1, hs2);
+            args1.swap(args2);
+        }
+
+        if (kn::is_fvar(hs1, static_cast<int>(bvs1.size())))
             ++prev, ++it;
         else if (hs1->idx - bvs1.size() != hs2->idx - bvs2.size())
             return false;
@@ -168,29 +178,18 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             }
 
             it = obj.erase_after(prev);
-            for (auto it1 = args1.begin(), it2 = args2.begin(); it1 != args1.end(); ++it1, ++it2)
+            for (auto it1 = args1.begin(), it2 = args2.begin(); it1 != args1.end(); ++it1, ++it2) {
                 it = obj.emplace_after(prev, mk_labs(bvs1, *it1), mk_labs(bvs1, *it2));
+            }
         }
     }
 
-    /*
-    cout << dep << "after decomposition" << endl;
-    for (auto &e : obj) cout << e << endl;
-    cout << "-----------------------" << endl;
-    */
+
 
     /*
-    unordered_set<int> tyset;
-    unordered_set<Term *> tmset;
-    for (auto &e : obj) {
-        get_frees(e.first, tyset, tmset);
-        get_frees(e.second, tyset, tmset);
-    }
-    for (auto &e : tmset) cout << e << ' ' << e->ty << endl;
-    cout << tmins << endl;
-    if (tmins.find(279) != tmins.end() && tmins[279]->is_comb())
-        cout << tmins[279]->rand()->ty << endl;
-    cout << "=========================" << endl;
+    cout << "after decomposition" << endl;
+    for (auto &e : obj) cout << e << endl;
+    cout << "-----------------------" << endl;
     */
 
     // Bind rule
@@ -211,7 +210,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         it = obj.erase_after(prev);
         insert_tmins(fv, tm, tmins);
         _update(fv, tm, obj, rsl);
-        return simplify(obj, rsl, tyins, tmins, dep + 1);
+        return simplify(obj, rsl, tyins, tmins, dep);
     }
 
     /*
@@ -238,7 +237,54 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
     /*
      * Higher level semantic check
+     * We can never cover all cases, try our best to reduce undecidability
      */
+
+    /*
+     * Guarantee every pairs in obj are either flex-flex or flex-rigid
+     * find (flex, rigid1) and (flex, rigid2)
+     * An example that might cause infinite loop:
+     * [x, x = x] and [x, x = (x = x)]
+     * After one step ==> [x = x, x = (x = x)] and [x, x = (x = x)]
+     * and after decomposition ==> [x, x = x] and [x, x = (x = x)], which
+     * is identical to the origin problem
+     * TODO: I have a sense that infinite loop caused by this case must be
+     * TODO: ununifiable, prove it in the future.
+     * [(`x79529 x79528`, `x79523 = x79523`); (`x79529 x79528`, `x78504 x78505`); (`x78504 x78505`, `C256`)]
+     * is found, which means tree structure support is needed...
+     */
+
+    for (auto it1 = obj.begin(); it1 != obj.end(); ++it1) {
+        auto it2 = it1;
+        for (++it2; it2 != obj.end(); ++it2) {
+            if (it1->first == it2->first) {
+                decompose(it1->second, bvs1, hs1, args1);
+                decompose(it2->second, bvs2, hs2, args2);
+
+                if (!kn::is_fvar(hs1, static_cast<int>(bvs1.size())) && !kn::is_fvar(hs2, static_cast<int>(bvs2.size()))) {
+                    it1->first = it2->second;
+                    return simplify(obj, rsl, tyins, tmins, dep + 1);
+                }
+            }
+        }
+    }
+
+    /*
+     * For every instance of [x mc, y mc] and {x/mc, y/mc}, we can deduce x = y
+     * todo: think about generalized form of this reduction rule
+     */
+    for (auto prev = obj.before_begin(), it = obj.begin(); it != obj.end(); ++prev, ++it) {
+        if (it->first->is_comb() && it->second->is_comb()) {
+            Term *x = it->first->rator(), *mx = it->first->rand();
+            Term *y = it->second->rator(), *my = it->second->rand();
+            if (x->is_leaf() && y->is_leaf() && mx->is_leaf() && my->is_leaf() && mx->idx == my->idx && std::find(rsl.begin(), rsl.end(), std::make_pair(x, mx->idx)) != rsl.end() && std::find(rsl.begin(), rsl.end(), std::make_pair(y, my->idx)) != rsl.end()) {
+                it = obj.erase_after(prev);
+                insert_tmins(x->idx, y, tmins);
+                _update(x->idx, y, obj, rsl);
+                return simplify(obj, rsl, tyins, tmins, dep);
+            }
+        }
+    }
 
     return true;
 }
@@ -378,7 +424,9 @@ bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res
     kn::term_pointer_pool.add_ckpt();
     kn::save_maps();
 
-    //cout << "Current task is " << endl << obj << endl << rsl << endl;
+    static int tot = 0;
+    tot++;
+    cout << tot << '\t' << "Current task is " << endl << obj << endl << rsl << endl;
     obj_type _obj(obj);
     rsl_type _rsl(rsl);
 
@@ -431,7 +479,8 @@ bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res
     // clear hash maps
     //clock_t t0 = clock();
     kn::load_maps();
-    cout << "finish " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << endl;
+    //cout << "finish " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << endl;
+    //cout << "jijiji " << kn::nform_map.hmap.max_size() << ' ' << kn::beta_map.hmap.max_size() << ' ' << kn::lift_map.hmap.max_size() << endl;
     //clock_t t1 = clock();
     //debug_t += t1 - t0;
 

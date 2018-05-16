@@ -174,7 +174,7 @@ bool ProofGraph::rdeduct(Node *k)
 bool ProofGraph::rabs(Node *k)
 {
     assert(k->tag == Node::todo);
-    if (nc >= kn::HI_CONST_TERM) return false;
+    if (nc >= kn::MD_CONST_TERM) return false;
 
     Type *aty = kn::new_type(), *bty = kn::new_type();
     Term *u = kn::new_term(kn::mk_fun(aty, bty)), *v = kn::new_term(kn::mk_fun(aty, bty));

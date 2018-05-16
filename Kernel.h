@@ -14,10 +14,20 @@
 
 namespace kn
 {
+    /*
+     * [0, LO_CONST_TYPE) are reserved for system atom types which can not be touched
+     * [LO_CONST_TYPE, HI_CONST_TYPE) are for user-defined const types
+     */
     extern const int LO_CONST_TYPE;
     extern const int HI_CONST_TYPE;
 
+    /*
+     * [0, LO_CONST_TERM) are reserved for system constants which can not be touched
+     * [LO_CONST_TERM, MD_CONST_TERM) are reserved for mc variables used in ABS rules
+     * [MD_CONST_TERM, HI_CONST_TERM) are for user-defined const variables
+     */
     extern const int LO_CONST_TERM;
+    extern const int MD_CONST_TERM;
     extern const int HI_CONST_TERM;
 
 
