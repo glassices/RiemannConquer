@@ -96,6 +96,26 @@ Term *_find(Term *x, std::unordered_map<Term *, Term *> &pre)
     return root;
 }
 
+bool _subterm(Term *fv, Term *tm, int scope = 0, bool is_bound = false)
+{
+    /*
+     * fv should be a free var
+     */
+    if (tm->is_abs()) return _subterm(fv, tm->bod(), scope + 1, is_bound);
+    if (fv == tm) return is_bound;
+
+    Term *hs;
+    std::vector<Term *> args;
+
+    strip_comb(tm, hs, args);
+    if (hs->idx >= scope + kn::HI_CONST_TERM) return false;
+    for (auto &arg : args)
+        if (_subterm(fv, arg, scope, true))
+            return true;
+    return false;
+}
+
+
 /*
  * The core principle in simplify is that, we never do imitation and
  * projection rules, which means we will NEVER introduce new free variables.
@@ -332,6 +352,13 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
+    /*
+     * x and (x = y)
+     */
+    for (auto &e1 : pre) if (e1.first->is_leaf() && kn::is_fvar(e1.first, 0))
+        for (auto &e2 : pre)
+            if (_subterm(e1.first, e2.first))
+                return false;
     return true;
 }
 
@@ -390,21 +417,25 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     //std::cout << "after simplify:    " << obj << std::endl;
     update_instor(_tyins, _tmins, tyins, tmins);
 
-    for (auto &e : obj) if (e.first->size > 30 || e.second->size > 30) return false;
-    for (auto &e : rsl) if (e.first->size > 30) return false;
-    for (auto &e : tmins) if (e.second->size > 30) return false;
+    for (auto &e : obj) if (e.first->size > 50 || e.second->size > 50) return false;
+    for (auto &e : rsl) if (e.first->size > 50) return false;
+    for (auto &e : tmins) if (e.second->size > 50) return false;
 
-    // naive choose a rigid-flex pair, this might be an interesting ML prediction task
-    for (auto &e : obj) {
-        decompose(e.first, bvs1, hs1, args1);
-        decompose(e.second, bvs2, hs2, args2);
-        if (!kn::is_fvar(hs1, static_cast<int>(bvs1.size()))) {
-            bvs1.swap(bvs2);
-            std::swap(hs1, hs2);
-            args1.swap(args2);
+    std::pair<Term *, Term *> best;
+    int ord, min_order = 1000000;
+    for (auto &e : obj)
+        if (!head_free(e.second) && (ord = ord_of_type(get_head(e.first)->ty)) < min_order) {
+            min_order = ord;
+            best = e;
         }
-        else if (kn::is_fvar(hs2, static_cast<int>(bvs2.size())))
-            continue;
+
+    /*
+     * naive choose a flex-rigid pair, this might be an interesting ML prediction task
+     */
+
+    if (min_order < 1000000) {
+        decompose(best.first, bvs1, hs1, args1);
+        decompose(best.second, bvs2, hs2, args2);
 
         obj_type obj_save(obj);
         rsl_type rsl_save(rsl);
@@ -464,11 +495,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
 bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res)
 {
-    kn::type_name_pool.add_ckpt();
-    kn::term_name_pool.add_ckpt();
-    kn::type_pointer_pool.add_ckpt();
-    kn::term_pointer_pool.add_ckpt();
-    kn::save_maps();
+    //cout << "start " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << ' ' << kn::term_pointer_pool.hmap.size() << endl;
 
     static int tot = 0;
     tot++;
@@ -488,49 +515,7 @@ bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res
     for (auto &e : ty_set) tyins[e] = kn::mk_atom(e);
     for (auto &e : tm_set) tmins[e->idx] = e;
 
-    bool ok = _term_unify(_obj, _rsl, tyins, tmins, 0, res);
-
-    if (! ok) {
-        // we must clear deleted types and terms in res
-        res.first.clear();
-        res.second.clear();
-        kn::type_name_pool.rec_ckpt();
-        kn::term_name_pool.rec_ckpt();
-        kn::type_pointer_pool.rec_ckpt();
-        kn::term_pointer_pool.rec_ckpt();
-    }
-    else {
-        // we must reserve new types and terms in res
-        ty_set.clear();
-        tm_set.clear();
-        std::unordered_set<Type *> ty_ptr;
-        std::unordered_set<Term *> tm_ptr;
-        for (auto &e : res.first) {
-            get_free_types(e.second, ty_set);
-            get_types(e.second, ty_ptr);
-        }
-        for (auto &e : res.second) {
-            get_frees(e.second, ty_set, tm_set);
-            get_terms(e.second, ty_ptr, tm_ptr);
-        }
-        std::unordered_set<int> tm_idx;
-        for (auto &e : tm_set) tm_idx.insert(e->idx);
-
-        kn::type_name_pool.rec_ckpt(ty_set);
-        kn::term_name_pool.rec_ckpt(tm_idx);
-        kn::type_pointer_pool.rec_ckpt(ty_ptr);
-        kn::term_pointer_pool.rec_ckpt(tm_ptr);
-    }
-
-    // clear hash maps
-    //clock_t t0 = clock();
-    kn::load_maps();
-    //cout << "finish " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << endl;
-    //cout << "jijiji " << kn::nform_map.hmap.max_size() << ' ' << kn::beta_map.hmap.max_size() << ' ' << kn::lift_map.hmap.max_size() << endl;
-    //clock_t t1 = clock();
-    //debug_t += t1 - t0;
-
-    return ok;
+    return _term_unify(_obj, _rsl, tyins, tmins, 0, res);
 }
 
 

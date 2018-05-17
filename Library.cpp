@@ -138,19 +138,27 @@ Term *vsubst(int idx, Term *sub, Term *tm, int scope)
 Term *vsubst(int idx, Term *sub, Term *tm,
              std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> &mvsub, int scope)
 {
-    auto key = std::make_pair(tm, scope);
-    auto it = mvsub.find(key);
-    if (it != mvsub.end()) return it->second;
-
-    if (tm->is_comb())
-        return mvsub[key] = kn::mk_comb(vsubst(idx, sub, tm->rator(), mvsub, scope), vsubst(idx, sub, tm->rand(), mvsub, scope));
-    else if (tm->is_abs())
-        return mvsub[key] = kn::mk_abs(tm->ty->dom(), vsubst(idx, sub, tm->bod(), mvsub, scope + 1));
-    else if (tm->idx == idx + scope)
-        // lift(term, inc, scope = 0)
-        return mvsub[key] = kn::lift(sub, scope);
-    else
-        return mvsub[key] = tm;
+    if (tm->is_leaf()) {
+        /*
+         * we have another hash guarantee in lift, so directly call it
+         * to avoid hash duplication
+         */
+        return tm->idx == idx + scope ? kn::lift(sub, scope) : tm;
+    }
+    else {
+        auto key = std::make_pair(tm, scope);
+        auto it = mvsub.find(key);
+        if (it != mvsub.end()) return it->second;
+        if (tm->is_comb()) {
+            Term *tm1 = vsubst(idx, sub, tm->rator(), mvsub, scope);
+            Term *tm2 = vsubst(idx, sub, tm->rand(), mvsub, scope);
+            return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+        }
+        else {
+            Term *tmb = vsubst(idx, sub, tm->bod(), mvsub, scope + 1);
+            return mvsub[key] = tmb == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmb);
+        }
+    }
 }
 
 Term *vsubst(const tm_instor &tmins, Term *tm, int scope)
@@ -248,6 +256,13 @@ Term *compose(const std::vector<Type *> &bvs, Term *hs, const std::vector<Term *
     return mk_labs(bvs, mk_lcomb(hs, args));
 }
 
+Term *get_head(Term *tm)
+{
+    while (tm->is_abs()) tm = tm->bod();
+    while (tm->is_comb()) tm = tm->rator();
+    return tm;
+}
+
 bool head_free(Term *tm)
 {
     int scope = 0;
@@ -257,6 +272,14 @@ bool head_free(Term *tm)
     }
     while (tm->is_comb()) tm = tm->rator();
     return tm->idx >= kn::HI_CONST_TERM + scope;
+}
+
+int ord_of_type(Type *ty)
+{
+    if (ty->is_atom())
+        return 1;
+    else
+        return std::max(ord_of_type(ty->dom()) + 1, ord_of_type(ty->cod()));
 }
 
 bool _is_eta(Term *tm)

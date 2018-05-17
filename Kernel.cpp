@@ -169,6 +169,10 @@ namespace kn {
 
     void save_maps()
     {
+        type_name_pool.add_ckpt();
+        term_name_pool.add_ckpt();
+        type_pointer_pool.add_ckpt();
+        term_pointer_pool.add_ckpt();
         nform_map.add_ckpt();
         beta_map.add_ckpt();
         lift_map.add_ckpt();
@@ -176,6 +180,10 @@ namespace kn {
 
     void load_maps()
     {
+        type_name_pool.rec_ckpt();
+        term_name_pool.rec_ckpt();
+        type_pointer_pool.rec_ckpt();
+        term_pointer_pool.rec_ckpt();
         nform_map.rec_ckpt();
         beta_map.rec_ckpt();
         lift_map.rec_ckpt();

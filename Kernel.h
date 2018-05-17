@@ -55,7 +55,7 @@ namespace kn
         std::unordered_map<T, T *, typename T::hash> hmap;
         std::vector<size_t> ckpt;
 
-        T *insert(T t)
+        T *insert(const T &t)
         {
             auto it = hmap.find(t);
             if (it != hmap.end())

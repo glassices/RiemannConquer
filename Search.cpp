@@ -42,6 +42,7 @@ int _count_deduct(Node *k)
 // if solution is found, return true and set state to the solution
 bool _naive_dfs(ProofGraph &state, int rem_node)
 {
+    kn::save_maps();
     //cout << state.root << rem_node << endl;
     Node *todo = _get_todo(state.root);
     if (todo) {
@@ -92,8 +93,6 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
             state = next_state;
             return true;
         }
-
-        return false;
     }
     else {
         // all nodes are closed and do unification
@@ -102,10 +101,9 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
             state.root->update_all(res.first, res.second);
             return true;
         }
-        else
-            return false;
-
     }
+    kn::load_maps();
+    return false;
 }
 
 void _print_proof(Node *k)

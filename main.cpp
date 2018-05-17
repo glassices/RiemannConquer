@@ -290,14 +290,15 @@ void logic_test()
 void searcher_test()
 {
     Term *p = mk_var(bool_ty, kn::MD_CONST_TERM + 0);
+
     /*
-    search(mk_eq(p, p), 1);
+    search(mk_eq(p, p), 22);
     puts("--------------------------------");
     */
 
     Type *booo = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
-    search(p_imp_p, 5);
+    search(p_imp_p, 6);
     cout << debug_t << endl;
     puts("--------------------------------");
 

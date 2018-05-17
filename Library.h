@@ -66,7 +66,9 @@ Term *mk_lcomb(std::initializer_list<Term *>);
 Term *mk_labs(const std::vector<Type *> &, Term *);
 Term *compose(const std::vector<Type *> &, Term*, const std::vector<Term *> &);
 
+Term *get_head(Term *);
 bool head_free(Term *);
+int ord_of_type(Type *);
 
 void bound_eta_norm(Term *&, Term *&);
 void remove_dummy_bvar(Term *&);
