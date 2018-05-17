@@ -296,7 +296,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         pre.emplace(e.second, e.second);
         pre[_find(e.first, pre)] = _find(e.second, pre);
     }
-    for (auto &e : pre) e.second = _find(e.second, pre);
+    for (auto &e : pre) _find(e.first, pre);
 
 
     /*
@@ -327,18 +327,25 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * TODO: improve this naive implementation
      */
 
-    for (auto it1 = obj.begin(); it1 != obj.end(); ++it1) if (!head_free(it1->second)) {
-        auto it2 = it1;
-        for (++it2; it2 != obj.end(); ++it2) {
-            if (it1->second != it2->second && pre[it1->first] == pre[it2->first] && !head_free(it2->second)) {
-                if (it1->second->size >= it2->second->size)
-                    it1->first = it2->second;
-                else
-                    it2->first = it1->second;
+    for (auto &e1 : pre) if (!head_free(e1.first))
+        for (auto &e2 : pre)
+            if (e1.first != e2.first && e1.second == e2.second && !head_free(e2.first)) {
+                Term *tm1 = e1.first, *tm2 = e2.first;
+                if (tm1->size < tm2->size) std::swap(tm1, tm2);
+                /*
+                 * delete tm1 and remain tm2
+                 */
+                obj.clear();
+                for (auto &i1 : pre) if (i1.first == i1.second) {
+                    Term *prev = nullptr;
+                    for (auto &i2 : pre) if (i1.second == i2.second && i2.first != tm1) {
+                        if (prev != nullptr) obj.emplace_front(prev, i2.first);
+                        prev = i2.first;
+                    }
+                }
+                obj.emplace_front(tm1, tm2);
                 return simplify(obj, rsl, tyins, tmins, dep);
             }
-        }
-    }
 
     /*
      * For every instance of [x mc, y mc] and {x/mc, y/mc}, we can deduce x = y
@@ -428,6 +435,11 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
         for (auto &e2 : pre) if (e1.second == e2.second) {
             decompose(e2.first, bvs2, hs2, args2);
+            /*
+             * can't imitate a constant with variable apx
+             */
+            if (hs2->ty->apex()->idx >= kn::HI_CONST_TYPE) continue;
+
             int idx2 = hs2->idx - static_cast<int>(bvs2.size());
             if (idx2 >= 0 && idx2 < kn::HI_CONST_TERM && std::find(idxes.begin(), idxes.end(), idx2) == idxes.end()) {
                 Term *sub;
@@ -497,7 +509,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
         // Projection
         for (int k = 0; k < hs1->ty->arity(); k++) {
-            _project(hs1->ty, k, sub, _tyins);
+            if (!_project(hs1->ty, k, sub, _tyins)) continue;
             update_instor(_tyins, idx, sub, tyins, tmins);
             _update(_tyins, idx, sub, obj, rsl);
             if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
