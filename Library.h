@@ -74,6 +74,7 @@ void bound_eta_norm(Term *&, Term *&);
 void remove_dummy_bvar(Term *&);
 
 Term *application(Term *, Term *);
+Term *abstraction(int, Type *, Term *);
 
 Term *beta_eta_term(Term *);
 

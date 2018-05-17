@@ -58,11 +58,9 @@ void Node::update_all(ty_instor &tyins, tm_instor &tmins)
 {
     if (p1) p1->update_all(tyins, tmins);
     if (p2) p2->update_all(tyins, tmins);
-    /*
     if (is_leaf() || (par && par->tag == Node::deduct))
         tm = beta_eta_term(vsubst(tmins, inst(tyins, tm)));
-    */
-    tm = beta_eta_term(vsubst(tmins, inst(tyins, tm)));
+    //tm = beta_eta_term(vsubst(tmins, inst(tyins, tm)));
 }
 
 ProofGraph::ProofGraph()

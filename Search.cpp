@@ -106,29 +106,73 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
     return false;
 }
 
-void _print_proof(Node *k)
+thm _get_proof(Node *k)
 {
     if (k->is_binary()) {
-        _print_proof(k->p1);
-        _print_proof(k->p2);
-        if (k->tag == Node::eq_mp)
-            std::cout << "EQ_MP\t";
-        else if (k->tag == Node::mk_comb)
-            std::cout << "MK_COMB\t";
-        else if (k->tag == Node::trans)
-            std::cout << "TRANS\t";
-        else
-            std::cout << "DEDUCT\t";
-        std::cout << k->tm << '\t' << k->p1->tm << '\t' << k->p2->tm << std::endl;
+        thm th1 = _get_proof(k->p1);
+        thm th2 = _get_proof(k->p2);
+        std::unordered_set<Term *> asl1 = th1.first, asl2 = th2.first;
+        Term *c1 = th1.second, *c2 = th2.second;
+
+        if (k->tag == Node::eq_mp) {
+            assert(kn::is_equal(c1) && c1->rator()->rand() == c2);
+            asl1.insert(asl2.begin(), asl2.end());
+            thm th(asl1, c1->rand());
+            std::cout << "EQ_MP\t" << th << std::endl;
+            return th;
+        }
+        else if (k->tag == Node::mk_comb) {
+            assert(kn::is_equal(c1) && kn::is_equal(c2) && c1->rand()->ty->dom() == c2->rand()->ty);
+            asl1.insert(asl2.begin(), asl2.end());
+            Term *tm1 = beta_eta_term(kn::mk_comb(c1->rator()->rand(), c2->rator()->rand()));
+            Term *tm2 = beta_eta_term(kn::mk_comb(c1->rand(), c2->rand()));
+            thm th(asl1, kn::mk_eq(tm1, tm2));
+            std::cout << "MK_COMB\t" << th << std::endl;
+            return th;
+        }
+        else if (k->tag == Node::trans) {
+            assert(kn::is_equal(c1) && kn::is_equal(c2) && c1->rand() == c2->rator()->rand());
+            asl1.insert(asl2.begin(), asl2.end());
+            thm th(asl1, kn::mk_eq(c1->rator()->rand(), c2->rand()));
+            std::cout << "TRANS\t" << th << std::endl;
+            return th;
+        }
+        else {
+            asl1.erase(c2);
+            asl2.erase(c1);
+            asl1.insert(asl2.begin(), asl2.end());
+            thm th(asl1, kn::mk_eq(c1, c2));
+            std::cout << "DEDUCT\t" << th << std::endl;
+            return th;
+        }
     }
     else if (k->is_unary()) {
-        _print_proof(k->p1);
-        std::cout << "ABS\t" << k->tm << '\t' << k->c << '\t' << k->p1->tm << std::endl;
+        assert(false);
+        return _get_proof(k->p1);
+        //thm thh = _get_proof(k->p1);
+        //std::unordered_set<Term *> asl = thh.first;
+        //Term *c = thh.second;
+
+        //for (auto &tm : asl) if (vfree_in(k->c, tm)) assert(false);
+        //assert(kn::is_equal(c));
+        //thm th(asl, kn::mk_eq(abstraction(k->c, c->rator()->rand()))
+
+        //_print_proof(k->p1);
+        //std::cout << "ABS\t" << k->tm << '\t' << k->c << '\t' << k->p1->tm << std::endl;
     }
-    else if (k->tag == Node::assume)
-        std::cout << "ASSUME\t" << k->tm << std::endl;
-    else
-        std::cout << "REFL\t" << k->tm << std::endl;
+    else if (k->tag == Node::assume) {
+        std::unordered_set<Term *> asl({k->tm});
+        thm th(asl, k->tm);
+        std::cout << "ASSUME\t" << th << std::endl;
+        return th;
+    }
+    else {
+        assert(kn::is_equal(k->tm) && k->tm->rator()->rand() == k->tm->rand());
+        std::unordered_set<Term *> asl;
+        thm th(asl, k->tm);
+        std::cout << "REFL\t" << th << std::endl;
+        return th;
+    }
 }
 
 bool search(Term *goal, int max_node)
@@ -138,7 +182,7 @@ bool search(Term *goal, int max_node)
     bool ok = _naive_dfs(state, max_node);
     if (ok) {
         std::cout << "Proof found" << std::endl;
-        _print_proof(state.root);
+        _get_proof(state.root);
     }
     else {
         std::cout << "Failed to find a proof..." << std::endl;

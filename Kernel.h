@@ -150,6 +150,7 @@ namespace kn
     bool is_const(const Term *, int = 0);
     bool is_fvar(Term *, int = 0);
     bool is_bvar(Term *, int = 0);
+    bool is_equal(Term *);
     Term *lift(Term *, int, int = 0);
     Term *mk_eq(Term *, Term *, int = 0);
 

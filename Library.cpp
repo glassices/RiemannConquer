@@ -351,6 +351,26 @@ Term *application(Term *tm1, Term *tm2)
     return _beta(tm1->bod(), tm2, 0);
 }
 
+Term *_reorder(int x, int scope, Term *tm)
+{
+    if (tm->is_comb())
+        return kn::mk_comb(_reorder(x, scope, tm->rator()), _reorder(x, scope, tm->rand()));
+    else if (tm->is_abs())
+        return kn::mk_abs(tm->ty->dom(), _reorder(x, scope + 1, tm->bod()));
+    else if (tm->idx == x + scope)
+        return kn::mk_var(tm->ty, scope);
+    else if (tm->idx < scope)
+        return tm;
+    else
+        return kn::mk_var(tm->ty, tm->idx + 1);
+
+}
+
+Term *abstraction(int x, Type *ty, Term *tm)
+{
+    return kn::mk_abs(ty, _reorder(x, 0, tm));
+}
+
 Term *beta_eta_term(Term *tm)
 {
     if (tm->is_leaf()) return tm;

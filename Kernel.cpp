@@ -138,6 +138,11 @@ namespace kn {
         return tm->idx < scope;
     }
 
+    bool is_equal(Term *tm)
+    {
+        return tm->is_comb() && tm->rator()->is_comb() && tm->rator()->rator()->idx == 0;
+    }
+
     Term *lift(Term *tm, int inc, int scope)
     {
         if (tm->tag == 2)
