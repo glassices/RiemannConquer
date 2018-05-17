@@ -290,6 +290,23 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * We can never cover all cases, try our best to reduce undecidability
      */
 
+    /*
+     * x mc/mc ==> x := \u. y
+     */
+    for (auto &e : rsl) if (e.first->is_comb()) {
+        Term *x = e.first->rator(), *mc = e.first->rand();
+        if (x->is_leaf() && mc->is_leaf() && mc->idx == e.second) {
+            Term *sub = kn::mk_abs(x->ty->dom(), kn::mk_var(x->ty->cod(), x->idx + 1));
+            insert_tmins(x->idx, sub, tmins);
+            _update(x->idx, sub, obj, rsl);
+            return simplify(obj, rsl, tyins, tmins, dep);
+        }
+    }
+
+    /*
+     * Initialize disjoint union set
+     */
+
     std::unordered_map<Term *, Term *> pre;
     for (auto &e : obj) {
         pre.emplace(e.first, e.first);
@@ -548,7 +565,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
 bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res)
 {
-    cout << "start " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << ' ' << kn::term_pointer_pool.hmap.size() << endl;
+    //cout << "start " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << ' ' << kn::term_pointer_pool.hmap.size() << endl;
 
     static int tot = 0;
     tot++;
