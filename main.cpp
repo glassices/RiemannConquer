@@ -298,7 +298,7 @@ void searcher_test()
 
     Type *booo = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
-    search(p_imp_p, 6);
+    search(p_imp_p, 5);
     cout << debug_t << endl;
     puts("--------------------------------");
 

@@ -21,6 +21,7 @@ struct Type
     Type *dom() const;
     Type *cod() const;
     int arity();
+    Type *apex();
     std::pair<Type *, Type *> dest_fun() const;
     void strip_fun(std::vector<Type *> &);
     void strip_fun(std::vector<Type *> &, Type *&);

@@ -117,6 +117,46 @@ bool _subterm(Term *fv, Term *tm, int scope = 0, bool is_bound = false)
 
 
 /*
+ * apex of fv.ty and c.ty should be same
+ */
+void _imitate(Type *ty, Term *c, Term *&sub)
+{
+    std::vector<Type *> tyl1, tyl2;
+    std::vector<Term *> bvars, args;
+
+    ty->strip_fun(tyl1);
+    c->ty->strip_fun(tyl2);
+    auto n = static_cast<int>(tyl1.size());
+
+    for (int i = 0; i < n; i++)
+        bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
+    for (auto &e : tyl2)
+        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
+    sub = compose(tyl1, kn::mk_var(c->ty, c->idx + n), args);
+}
+
+bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
+{
+    Type *apx1, *apx2;
+    std::vector<Type *> tyl1, tyl2;
+    std::vector<Term *> bvars, args;
+
+    tyins.clear();
+    ty->strip_fun(tyl1, apx1);
+    tyl1[k]->strip_fun(tyl2, apx2);
+    auto n = static_cast<int>(tyl1.size());
+
+    for (int i = 0; i < n; i++)
+        bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
+    if (!type_unify(apx1, apx2, tyins)) return false;
+    for (auto &e : tyl2)
+        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
+    sub = inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], n - 1 - k), args));
+    return true;
+}
+
+
+/*
  * The core principle in simplify is that, we never do imitation and
  * projection rules, which means we will NEVER introduce new free variables.
  * This can guarantee that insert_tmins is optimal and there is no need
@@ -142,7 +182,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * since no type variable is introduces, feel free to merge tyins
      */
 
-    //if (dep >= 50) return false;
+    if (dep >= 10) return false;
 
     ty_instor ret_tyins;
     std::vector<Type *> bvs1, bvs2;
@@ -222,27 +262,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     cout << "-----------------------" << endl;
     */
 
-    // Bind rule
-    for (auto prev = obj.before_begin(), it = obj.begin(); it != obj.end(); ++prev, ++it) {
-        int fv;
-        Term *tm;
-        if (it->first->is_leaf() && kn::is_fvar(it->first) && !vfree_in(it->first->idx, it->second)) {
-            fv = it->first->idx;
-            tm = it->second;
-        }
-        else if (it->second->is_leaf() && kn::is_fvar(it->second) && !vfree_in(it->second->idx, it->first)) {
-            fv = it->second->idx;
-            tm = it->first;
-        }
-        else
-            continue;
-
-        it = obj.erase_after(prev);
-        insert_tmins(fv, tm, tmins);
-        _update(fv, tm, obj, rsl);
-        return simplify(obj, rsl, tyins, tmins, dep);
-    }
-
     /*
      * Deal with rsl
      */
@@ -270,6 +289,29 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * We can never cover all cases, try our best to reduce undecidability
      */
 
+    std::unordered_map<Term *, Term *> pre;
+    for (auto &e : obj) {
+        pre.emplace(e.first, e.first);
+        pre.emplace(e.second, e.second);
+        pre[_find(e.first, pre)] = _find(e.second, pre);
+    }
+    for (auto &e : pre) e.second = _find(e.second, pre);
+
+
+    /*
+     * Bind rule
+     */
+    for (auto &e1 : pre) {
+        if (e1.first->is_leaf() && kn::is_fvar(e1.first)) {
+            for (auto &e2 : pre) if (e1.second == e2.second && !vfree_in(e1.first->idx, e2.first)) {
+                insert_tmins(e1.first->idx, e2.first, tmins);
+                _update(e1.first->idx, e2.first, obj, rsl);
+                return simplify(obj, rsl, tyins, tmins, dep);
+            }
+        }
+    }
+
+
     /*
      * Guarantee every pairs in obj are either flex-flex or flex-rigid
      * find (flex, rigid1) and (flex, rigid2)
@@ -283,14 +325,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * To avoid this, always delete larger rigid term
      * TODO: improve this naive implementation
      */
-
-    std::unordered_map<Term *, Term *> pre;
-    for (auto &e : obj) {
-        pre.emplace(e.first, e.first);
-        pre.emplace(e.second, e.second);
-        pre[_find(e.first, pre)] = _find(e.second, pre);
-    }
-    for (auto &e : pre) e.second = _find(e.second, pre);
 
     for (auto it1 = obj.begin(); it1 != obj.end(); ++it1) if (!head_free(it1->second)) {
         auto it2 = it1;
@@ -359,45 +393,51 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         for (auto &e2 : pre)
             if (_subterm(e1.first, e2.first))
                 return false;
-    return true;
-}
 
-/*
- * apex of fv.ty and c.ty should be same
- */
-void _imitate(Term *fv, Term *c, Term *&sub)
-{
-    std::vector<Type *> tyl1, tyl2;
-    std::vector<Term *> bvars, args;
+    /*
+     * Projection is impossible
+     * todo: be careful this method might incur infinite recursion
+     */
+    for (auto &e1 : pre) {
+        /*
+         * look for a candidate, head_var of tm1 is free and every head var of
+         * each arg of tm1 is either bounded by tm1's top bvars or constants
+         */
+        decompose(e1.first, bvs1, hs1, args1);
+        int idx1 = hs1->idx - static_cast<int>(bvs1.size());
+        if (idx1 < kn::HI_CONST_TERM) continue;
 
-    fv->ty->strip_fun(tyl1);
-    c->ty->strip_fun(tyl2);
-    auto n = static_cast<int>(tyl1.size());
+        std::vector<int> idxes;
+        bool ok = true;
+        for (auto &arg : args1) {
+            decompose(arg, bvs2, hs2, args2);
+            int idx = hs2->idx - static_cast<int>(bvs1.size() + bvs2.size());
+            /*
+             * shouldn't be locally bounded
+             */
+            if (idx >= -bvs1.size() && idx < kn::HI_CONST_TERM) {
+                if (idx >= 0) idxes.push_back(idx);
+            }
+            else {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) continue;
 
-    for (int i = 0; i < n; i++)
-        bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
-    for (auto &e : tyl2)
-        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
-    sub = compose(tyl1, kn::mk_var(c->ty, c->idx + n), args);
-}
+        for (auto &e2 : pre) if (e1.second == e2.second) {
+            decompose(e2.first, bvs2, hs2, args2);
+            int idx2 = hs2->idx - static_cast<int>(bvs2.size());
+            if (idx2 >= 0 && idx2 < kn::HI_CONST_TERM && std::find(idxes.begin(), idxes.end(), idx2) == idxes.end()) {
+                Term *sub;
+                _imitate(hs1->ty, kn::mk_var(hs2->ty, idx2), sub);
+                insert_tmins(idx1, sub, tmins);
+                _update(idx1, sub, obj, rsl);
+                return simplify(obj, rsl, tyins, tmins, dep + 1);
+            }
+        }
+    }
 
-bool _project(Term *fv, int k, Term *&sub, ty_instor &tyins)
-{
-    Type *apx1, *apx2;
-    std::vector<Type *> tyl1, tyl2;
-    std::vector<Term *> bvars, args;
-
-    tyins.clear();
-    fv->ty->strip_fun(tyl1, apx1);
-    tyl1[k]->strip_fun(tyl2, apx2);
-    auto n = static_cast<int>(tyl1.size());
-
-    for (int i = 0; i < n; i++)
-        bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
-    if (!type_unify(apx1, apx2, tyins)) return false;
-    for (auto &e : tyl2)
-        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
-    sub = inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], n - 1 - k), args));
     return true;
 }
 
@@ -445,7 +485,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
         int idx = hs1->idx - static_cast<int>(bvs1.size());
         // Imitation
         if (kn::is_const(hs2, static_cast<int>(bvs2.size()))) {
-            _imitate(hs1, hs2, sub);
+            _imitate(hs1->ty, kn::mk_var(hs2->ty, hs2->idx - static_cast<int>(bvs2.size())), sub);
             update_tmins(idx, sub, tmins);
             _update(idx, sub, obj, rsl);
             if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
@@ -456,7 +496,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
         // Projection
         for (int k = 0; k < hs1->ty->arity(); k++) {
-            _project(hs1, k, sub, _tyins);
+            _project(hs1->ty, k, sub, _tyins);
             update_instor(_tyins, idx, sub, tyins, tmins);
             _update(_tyins, idx, sub, obj, rsl);
             if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
@@ -495,7 +535,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
 bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res)
 {
-    //cout << "start " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << ' ' << kn::term_pointer_pool.hmap.size() << endl;
+    cout << "start " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << ' ' << kn::term_pointer_pool.hmap.size() << endl;
 
     static int tot = 0;
     tot++;

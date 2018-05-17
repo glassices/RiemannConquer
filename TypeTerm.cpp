@@ -36,6 +36,13 @@ int Type::arity()
     return res;
 }
 
+Type *Type::apex()
+{
+    Type *ret;
+    for (ret = this; ret->is_fun(); ret = ret->cod());
+    return ret;
+}
+
 std::pair<Type *,Type *> Type::dest_fun() const
 {
     return std::make_pair(lptr, rptr);

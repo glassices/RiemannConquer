@@ -101,6 +101,13 @@ ProofGraph &ProofGraph::operator=(ProofGraph other)
  * Node k should be inside the proof graph, otherwise undefined behavior occurs
  */
 
+int _nnode(Node *k)
+{
+    if (k->is_binary()) return 1 + _nnode(k->p1) + _nnode(k->p2);
+    else if (k->is_unary()) return 1 + _nnode(k->p1);
+    else return 0;
+}
+
 bool ProofGraph::distill()
 {
     ty_instor tyins;
