@@ -3,6 +3,7 @@
 //
 
 #include "Library.h"
+#include <algorithm>
 
 Type *type_subst(int idx, Type *sub, Type *ty)
 {

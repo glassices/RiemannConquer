@@ -3,4 +3,19 @@ project(Bpril)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(Bpril main.cpp TypeTerm.cpp TypeTerm.h Kernel.cpp Kernel.h Library.cpp Library.h Unification.cpp Unification.h ProofGraph.cpp ProofGraph.h Search.cpp Search.h)
+include_directories(.)
+
+add_executable(Bpril
+        Kernel.cpp
+        Kernel.h
+        Library.cpp
+        Library.h
+        main.cpp
+        ProofGraph.cpp
+        ProofGraph.h
+        Search.cpp
+        Search.h
+        TypeTerm.cpp
+        TypeTerm.h
+        Unification.cpp
+        Unification.h)
