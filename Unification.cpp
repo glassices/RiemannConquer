@@ -84,6 +84,18 @@ void _update(ty_instor &tyins, int fv, Term *tm, obj_type &obj, rsl_type &rsl)
     for (auto &e : rsl) e.first = vsubst(fv, tm, inst(tyins, e.first, minst), mvsub);
 }
 
+Term *_find(Term *x, std::unordered_map<Term *, Term *> &pre)
+{
+    Term *root = x, *ret;
+    while ((ret = pre[root]) != root) root = ret;
+    while (x != root) {
+        Term *&e = pre[x];
+        x = e;
+        e = root;
+    }
+    return root;
+}
+
 /*
  * The core principle in simplify is that, we never do imitation and
  * projection rules, which means we will NEVER introduce new free variables.
@@ -110,7 +122,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * since no type variable is introduces, feel free to merge tyins
      */
 
-    if (dep >= 50) return false;
+    //if (dep >= 50) return false;
 
     ty_instor ret_tyins;
     std::vector<Type *> bvs1, bvs2;
@@ -184,8 +196,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
-
-
     /*
     cout << "after decomposition" << endl;
     for (auto &e : obj) cout << e << endl;
@@ -243,45 +253,81 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     /*
      * Guarantee every pairs in obj are either flex-flex or flex-rigid
      * find (flex, rigid1) and (flex, rigid2)
+     * [(`x79529 x79528`, `x79523 = x79523`); (`x79529 x79528`, `x78504 x78505`); (`x78504 x78505`, `C256`)]
+     * is found, which means tree structure support is needed...
      * An example that might cause infinite loop:
      * [x, x = x] and [x, x = (x = x)]
      * After one step ==> [x = x, x = (x = x)] and [x, x = (x = x)]
      * and after decomposition ==> [x, x = x] and [x, x = (x = x)], which
      * is identical to the origin problem
-     * TODO: I have a sense that infinite loop caused by this case must be
-     * TODO: ununifiable, prove it in the future.
-     * [(`x79529 x79528`, `x79523 = x79523`); (`x79529 x79528`, `x78504 x78505`); (`x78504 x78505`, `C256`)]
-     * is found, which means tree structure support is needed...
+     * To avoid this, always delete larger rigid term
+     * TODO: improve this naive implementation
      */
 
-    for (auto it1 = obj.begin(); it1 != obj.end(); ++it1) {
+    std::unordered_map<Term *, Term *> pre;
+    for (auto &e : obj) {
+        pre.emplace(e.first, e.first);
+        pre.emplace(e.second, e.second);
+        pre[_find(e.first, pre)] = _find(e.second, pre);
+    }
+    for (auto &e : pre) e.second = _find(e.second, pre);
+
+    for (auto it1 = obj.begin(); it1 != obj.end(); ++it1) if (!head_free(it1->second)) {
         auto it2 = it1;
         for (++it2; it2 != obj.end(); ++it2) {
-            if (it1->first == it2->first) {
-                decompose(it1->second, bvs1, hs1, args1);
-                decompose(it2->second, bvs2, hs2, args2);
-
-                if (!kn::is_fvar(hs1, static_cast<int>(bvs1.size())) && !kn::is_fvar(hs2, static_cast<int>(bvs2.size()))) {
+            if (it1->second != it2->second && pre[it1->first] == pre[it2->first] && !head_free(it2->second)) {
+                if (it1->second->size >= it2->second->size)
                     it1->first = it2->second;
-                    return simplify(obj, rsl, tyins, tmins, dep + 1);
-                }
+                else
+                    it2->first = it1->second;
+                return simplify(obj, rsl, tyins, tmins, dep);
             }
         }
     }
 
     /*
      * For every instance of [x mc, y mc] and {x/mc, y/mc}, we can deduce x = y
-     * todo: think about generalized form of this reduction rule
+     * TODO: think about generalized form of this reduction rule
      */
-    for (auto prev = obj.before_begin(), it = obj.begin(); it != obj.end(); ++prev, ++it) {
-        if (it->first->is_comb() && it->second->is_comb()) {
-            Term *x = it->first->rator(), *mx = it->first->rand();
-            Term *y = it->second->rator(), *my = it->second->rand();
-            if (x->is_leaf() && y->is_leaf() && mx->is_leaf() && my->is_leaf() && mx->idx == my->idx && std::find(rsl.begin(), rsl.end(), std::make_pair(x, mx->idx)) != rsl.end() && std::find(rsl.begin(), rsl.end(), std::make_pair(y, my->idx)) != rsl.end()) {
-                it = obj.erase_after(prev);
-                insert_tmins(x->idx, y, tmins);
-                _update(x->idx, y, obj, rsl);
-                return simplify(obj, rsl, tyins, tmins, dep);
+    for (auto it1 = pre.begin(); it1 != pre.end(); ++it1) if (it1->first->is_comb()) {
+        Term *x = it1->first->rator(), *mx = it1->first->rand();
+        if (x->is_leaf() && mx->is_leaf()) {
+            bool ok = false;
+            for (auto &e : rsl) if (e.second == mx->idx) {
+                if (x == e.first) {
+                    ok = true;
+                    break;
+                }
+                else {
+                    auto i1 = pre.find(e.first);
+                    auto i2 = pre.find(x);
+                    if (i1 != pre.end() && i2 != pre.end() && i1->second == i2->second) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (ok) {
+                auto it2 = it1;
+                for (++it2; it2 != pre.end(); ++it2) if (it2->first->is_comb() && it1->second == it2->second) {
+                    Term *y = it2->first->rator(), *my = it2->first->rand();
+                    if (y->is_leaf() && my->is_leaf() && x != y && mx->idx == my->idx) {
+                        for (auto &e : rsl) if (e.second == my->idx) {
+                            if (y == e.first) {
+                                insert_tmins(x->idx, y, tmins);
+                                _update(x->idx, y, obj, rsl);
+                                return simplify(obj, rsl, tyins, tmins, dep);
+                            }
+                            auto i1 = pre.find(e.first);
+                            auto i2 = pre.find(y);
+                            if (i1 != pre.end() && i2 != pre.end() && i1->second == i2->second) {
+                                insert_tmins(x->idx, y, tmins);
+                                _update(x->idx, y, obj, rsl);
+                                return simplify(obj, rsl, tyins, tmins, dep);
+                            }
+                        }
+                    }
+                }
             }
         }
     }

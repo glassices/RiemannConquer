@@ -248,6 +248,17 @@ Term *compose(const std::vector<Type *> &bvs, Term *hs, const std::vector<Term *
     return mk_labs(bvs, mk_lcomb(hs, args));
 }
 
+bool head_free(Term *tm)
+{
+    int scope = 0;
+    while (tm->is_abs()) {
+        tm = tm->bod();
+        scope++;
+    }
+    while (tm->is_comb()) tm = tm->rator();
+    return tm->idx >= kn::HI_CONST_TERM + scope;
+}
+
 bool _is_eta(Term *tm)
 {
     return tm->is_comb() && tm->rand()->is_leaf() && tm->rand()->idx == 0 && !vfree_in(0, tm->rator());
