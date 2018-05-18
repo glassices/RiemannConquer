@@ -312,11 +312,20 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
     /*
      * Initialize disjoint union set
+     * Notice: the domain is pointer so there EXISTS randomness here,
+     * use some extra effort to avoid this
      */
+    std::vector<Term *> tms;
     std::unordered_map<Term *, Term *> pre;
     for (auto &e : obj) {
-        pre.emplace(e.first, e.first);
-        pre.emplace(e.second, e.second);
+        if (std::find(tms.begin(), tms.end(), e.first) == tms.end()) {
+            pre.emplace(e.first, e.first);
+            tms.push_back(e.first);
+        }
+        if (std::find(tms.begin(), tms.end(), e.second) == tms.end()) {
+            pre.emplace(e.second, e.second);
+            tms.push_back(e.second);
+        }
         pre[_find(e.first, pre)] = _find(e.second, pre);
     }
     for (auto &e : pre) _find(e.first, pre);
@@ -325,11 +334,12 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     /*
      * Bind rule
      */
-    for (auto &e1 : pre) {
-        if (e1.first->is_leaf() && kn::is_fvar(e1.first)) {
-            for (auto &e2 : pre) if (e1.second == e2.second && !vfree_in(e1.first->idx, e2.first)) {
-                insert_tmins(e1.first->idx, e2.first, tmins);
-                _update(e1.first->idx, e2.first, obj, rsl);
+
+    for (auto &e1 : tms) {
+        if (e1->is_leaf() && kn::is_fvar(e1)) {
+            for (auto &e2 : tms) if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2)) {
+                insert_tmins(e1->idx, e2, tmins);
+                _update(e1->idx, e2, obj, rsl);
                 return simplify(obj, rsl, tyins, tmins, dep);
             }
         }
@@ -337,6 +347,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
 
     /*
+     * Find long-term rigid-rigid pairs
      * An example that might cause infinite loop:
      * [x, x = x] and [x, x = (x = x)]
      * After one step ==> [x = x, x = (x = x)] and [x, x = (x = x)]
@@ -345,14 +356,11 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * To avoid this, always delete larger rigid term
      * TODO: improve this naive implementation
      */
-    for (auto &e1 : pre) if (!head_free(e1.first)) {
-        for (auto &e2 : pre)
-            if (e1.first != e2.first && e1.second == e2.second && !head_free(e2.first)) {
-                Term *tm1 = e1.first, *tm2 = e2.first;
+    for (auto &e1 : tms) if (!head_free(e1)) {
+        for (auto &e2 : tms)
+            if (e1 != e2 && pre[e1] == pre[e2] && !head_free(e2)) {
+                Term *tm1 = e1, *tm2 = e2;
                 if (tm1->size < tm2->size) std::swap(tm1, tm2);
-                /*
-                 * delete tm1 and remain tm2
-                 */
                 _delete_term_from_obj(obj, pre, tm1);
                 obj.emplace_front(tm1, tm2);
                 return simplify(obj, rsl, tyins, tmins, dep);
@@ -365,8 +373,8 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * x and y need not to be leafs
      * TODO: think about generalized form of this reduction rule
      */
-    for (auto it1 = pre.begin(); it1 != pre.end(); ++it1) if (it1->first->is_comb()) {
-        Term *x = it1->first->rator(), *mx = it1->first->rand();
+    for (auto it1 = tms.begin(); it1 != tms.end(); ++it1) if ((*it1)->is_comb()) {
+        Term *x = (*it1)->rator(), *mx = (*it1)->rand();
         if (mx->is_leaf() && mx->idx >= kn::LO_CONST_TERM && mx->idx < kn::MD_CONST_TERM) {
             bool ok = false;
             for (auto &e : rsl) if (e.second == mx->idx) {
@@ -385,8 +393,8 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             }
             if (ok) {
                 auto it2 = it1;
-                for (++it2; it2 != pre.end(); ++it2) if (it2->first->is_comb() && it1->second == it2->second) {
-                    Term *y = it2->first->rator(), *my = it2->first->rand();
+                for (++it2; it2 != tms.end(); ++it2) if ((*it2)->is_comb() && pre[*it1] == pre[*it2]) {
+                    Term *y = (*it2)->rator(), *my = (*it2)->rand();
                     if (my->is_leaf() && mx->idx == my->idx && x != y) {
                         for (auto &e : rsl) if (e.second == my->idx) {
                             ok = false;
@@ -397,7 +405,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                                 if (i1 != pre.end() && i2 != pre.end() && i1->second == i2->second) ok = true;
                             }
                             if (ok) {
-                                _delete_term_from_obj(obj, pre, it1->first);
+                                _delete_term_from_obj(obj, pre, *it1);
                                 obj.emplace_front(x, y);
                                 return simplify(obj, rsl, tyins, tmins, dep);
                             }
@@ -413,9 +421,9 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * x and x is a rigid-position of y
      * i.e., x and \u. u (x = y)
      */
-    for (auto &e1 : pre) if (head_free(e1.first)) {
-        for (auto &e2 : pre)
-            if (e1.second == e2.second && e1.first->size < e2.first->size && _subterm(e1.first, e2.first))
+    for (auto &e1 : tms) if (head_free(e1)) {
+        for (auto &e2 : tms)
+            if (pre[e1] == pre[e2] && e1->size < e2->size && _subterm(e1, e2))
                 return false;
     }
 
@@ -423,13 +431,11 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     /*
      * Projection is impossible
      * todo: be careful this method might incur infinite recursion
+     * look for a candidate, head_var of tm1 is free and every head var of
+     * each arg of tm1 is either bounded by tm1's top bvars or constants
      */
-    for (auto &e1 : pre) {
-        /*
-         * look for a candidate, head_var of tm1 is free and every head var of
-         * each arg of tm1 is either bounded by tm1's top bvars or constants
-         */
-        decompose(e1.first, bvs1, hs1, args1);
+    for (auto &e1 : tms) {
+        decompose(e1, bvs1, hs1, args1);
         int idx1 = hs1->idx - static_cast<int>(bvs1.size());
         if (idx1 < kn::HI_CONST_TERM) continue;
 
@@ -438,9 +444,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         for (auto &arg : args1) {
             decompose(arg, bvs2, hs2, args2);
             int idx = hs2->idx - static_cast<int>(bvs1.size() + bvs2.size());
-            /*
-             * shouldn't be locally bounded
-             */
             if (idx >= -bvs1.size() && idx < kn::HI_CONST_TERM) {
                 if (idx >= 0) idxes.push_back(idx);
             }
@@ -451,11 +454,8 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
         if (!ok) continue;
 
-        for (auto &e2 : pre) if (e1.second == e2.second) {
-            decompose(e2.first, bvs2, hs2, args2);
-            /*
-             * can't imitate a constant with variable apx
-             */
+        for (auto &e2 : tms) if (pre[e1] == pre[e2]) {
+            decompose(e2, bvs2, hs2, args2);
             if (hs2->ty->apex()->idx >= kn::HI_CONST_TYPE) continue;
 
             int idx2 = hs2->idx - static_cast<int>(bvs2.size());
@@ -530,7 +530,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
         for (int k = 0; k < hs1->ty->arity(); k++) {
             if (!_project(hs1->ty, k, sub, _tyins)) continue;
             update_instor(_tyins, idx, sub, tyins, tmins);
-            _update(_tyins, idx, sub, obj, rsl);
+            _tyins.size() ? _update(_tyins, idx, sub, obj, rsl) : _update(idx, sub, obj, rsl);
             if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
             obj = obj_save;
             rsl = rsl_save;

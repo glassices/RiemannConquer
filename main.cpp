@@ -290,9 +290,9 @@ void logic_test()
 void searcher_test()
 {
     // 0(=), 1(@), 2(T), 3(/\), 4(==>), 5(!)
+    Type *booo = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
     Term *p = mk_var(bool_ty, kn::MD_CONST_TERM + 0);
     Term *q = mk_var(bool_ty, kn::MD_CONST_TERM + 1);
-    Type *booo = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
 
     /*
     search(mk_eq(p, p), 1);

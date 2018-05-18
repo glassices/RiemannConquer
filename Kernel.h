@@ -113,6 +113,9 @@ namespace kn
 
         void insert(const T1 &key, const T2 &val)
         {
+            /*
+             * key is guaranteed not to exists in hmap
+             */
             hmap.emplace(key, val);
             pool.push_back(key);
         }

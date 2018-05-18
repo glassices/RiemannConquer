@@ -102,12 +102,19 @@ bool vfree_in(int idx, Term *tm, int scope)
 
 Term *inst(const ty_instor &theta, Term *tm)
 {
-    if (tm->is_comb())
-        return kn::mk_comb(inst(theta, tm->rator()), inst(theta, tm->rand()));
-    else if (tm->is_abs())
-        return kn::mk_abs(type_subst(theta, tm->ty->dom()), inst(theta, tm->bod()));
-    else
-        return kn::mk_var(type_subst(theta, tm->ty), tm->idx);
+    if (tm->is_comb()) {
+        Term *tm1 = inst(theta, tm->rator()), *tm2 = inst(theta, tm->rand());
+        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Type *ty_ = type_subst(theta, tm->ty->dom());
+        Term *tm_ = inst(theta, tm->bod());
+        return tm->ty->dom() == ty_ && tm->bod() == tm_ ? tm : kn::mk_abs(ty_, tm_);
+    }
+    else {
+        Type *ty = type_subst(theta, tm->ty);
+        return ty == tm->ty ? tm : kn::mk_var(ty, tm->idx);
+    }
 }
 
 Term *inst(const ty_instor &theta, Term *tm, std::unordered_map<Term *, Term *> &minst)
@@ -115,25 +122,34 @@ Term *inst(const ty_instor &theta, Term *tm, std::unordered_map<Term *, Term *> 
     auto it = minst.find(tm);
     if (it != minst.end()) return it->second;
 
-    if (tm->is_comb())
-        return minst[tm] = kn::mk_comb(inst(theta, tm->rator(), minst), inst(theta, tm->rand(), minst));
-    else if (tm->is_abs())
-        return minst[tm] = kn::mk_abs(type_subst(theta, tm->ty->dom()), inst(theta, tm->bod(), minst));
-    else
-        return minst[tm] = kn::mk_var(type_subst(theta, tm->ty), tm->idx);
+    if (tm->is_comb()) {
+        Term *tm1 = inst(theta, tm->rator(), minst), *tm2 = inst(theta, tm->rand(), minst);
+        return minst[tm] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Type *ty_ = type_subst(theta, tm->ty->dom());
+        Term *tm_ = inst(theta, tm->bod(), minst);
+        return minst[tm] = tm->ty->dom() == ty_ && tm->bod() == tm_ ? tm : kn::mk_abs(ty_, tm_);
+    }
+    else {
+        Type *ty = type_subst(theta, tm->ty);
+        return minst[tm] = ty == tm->ty ? tm : kn::mk_var(ty, tm->idx);
+    }
 }
 
 Term *vsubst(int idx, Term *sub, Term *tm, int scope)
 {
-    if (tm->is_comb())
-        return kn::mk_comb(vsubst(idx, sub, tm->rator(), scope), vsubst(idx, sub, tm->rand(), scope));
-    else if (tm->is_abs())
-        return kn::mk_abs(tm->ty->dom(), vsubst(idx, sub, tm->bod(), scope + 1));
-    else if (tm->idx == idx + scope)
-        // lift(term, inc, scope = 0)
-        return kn::lift(sub, scope);
+    if (tm->is_comb()) {
+        Term *tm1 = vsubst(idx, sub, tm->rator(), scope);
+        Term *tm2 = vsubst(idx, sub, tm->rand(), scope);
+        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Term *tmb = vsubst(idx, sub, tm->bod(), scope + 1);
+        return tmb == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmb);
+    }
     else
-        return tm;
+        return tm->idx == idx + scope ? kn::lift(sub, scope) : tm;
 }
 
 Term *vsubst(int idx, Term *sub, Term *tm,
@@ -164,10 +180,14 @@ Term *vsubst(int idx, Term *sub, Term *tm,
 
 Term *vsubst(const tm_instor &tmins, Term *tm, int scope)
 {
-    if (tm->is_comb())
-        return kn::mk_comb(vsubst(tmins, tm->rator(), scope), vsubst(tmins, tm->rand(), scope));
-    else if (tm->is_abs())
-        return kn::mk_abs(tm->ty->dom(), vsubst(tmins, tm->bod(), scope + 1));
+    if (tm->is_comb()) {
+        Term *tm1 = vsubst(tmins, tm->rator(), scope), *tm2 = vsubst(tmins, tm->rand(), scope);
+        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Term *tmm = vsubst(tmins, tm->bod(), scope + 1);
+        return tmm == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmm);
+    }
     else if (tm->idx >= scope) {
         auto it = tmins.find(tm->idx - scope);
         if (it != tmins.end())
@@ -186,10 +206,15 @@ Term *vsubst(const tm_instor &tmins, Term *tm,
     auto it = mvsub.find(key);
     if (it != mvsub.end()) return it->second;
 
-    if (tm->is_comb())
-        return mvsub[key] = kn::mk_comb(vsubst(tmins, tm->rator(), mvsub, scope), vsubst(tmins, tm->rand(), mvsub, scope));
-    else if (tm->is_abs())
-        return mvsub[key] = kn::mk_abs(tm->ty->dom(), vsubst(tmins, tm->bod(), mvsub, scope + 1));
+    if (tm->is_comb()) {
+        Term *tm1 = vsubst(tmins, tm->rator(), mvsub, scope);
+        Term *tm2 = vsubst(tmins, tm->rand(), mvsub, scope);
+        return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Term *tmm = vsubst(tmins, tm->bod(), mvsub, scope + 1);
+        return mvsub[key] = tmm == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmm);
+    }
     else if (tm->idx >= scope) {
         auto it = tmins.find(tm->idx - scope);
         if (it != tmins.end())
