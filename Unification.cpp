@@ -97,21 +97,22 @@ Term *_find(Term *x, std::unordered_map<Term *, Term *> &pre)
     return root;
 }
 
-bool _subterm(Term *fv, Term *tm, int scope = 0, bool is_bound = false)
+bool _subterm(Term *tm1, Term *tm2, int scope = 0)
 {
     /*
      * fv should be a free var
      */
-    if (tm->is_abs()) return _subterm(fv, tm->bod(), scope + 1, is_bound);
-    if (fv == tm) return is_bound;
+    if (tm1->size > tm2->size) return false;
+    if (tm1->size == tm2->size) return kn::lift(tm1, scope) == tm2;
+    if (tm2->is_abs()) return _subterm(tm1, tm2->bod(), scope + 1);
 
     Term *hs;
     std::vector<Term *> args;
 
-    strip_comb(tm, hs, args);
+    strip_comb(tm2, hs, args);
     if (hs->idx >= scope + kn::HI_CONST_TERM) return false;
     for (auto &arg : args)
-        if (_subterm(fv, arg, scope, true))
+        if (_subterm(tm1, arg, scope))
             return true;
     return false;
 }
@@ -156,6 +157,17 @@ bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
     return true;
 }
 
+void _delete_term_from_obj(obj_type &obj, std::unordered_map<Term *, Term *> &pre, Term *tm)
+{
+    obj.clear();
+    for (auto &i1 : pre) if (i1.first == i1.second) {
+        Term *prev = nullptr;
+        for (auto &i2 : pre) if (i1.second == i2.second && i2.first != tm) {
+            if (prev != nullptr) obj.emplace_front(prev, i2.first);
+            prev = i2.first;
+        }
+    }
+}
 
 /*
  * The core principle in simplify is that, we never do imitation and
@@ -176,13 +188,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      */
 
 
-    /*
-     * all in one
-     * decompose rule, delete rule, unused bvars elimination and type unify to
-     * avoid recursive calls of simplify
-     * since no type variable is introduces, feel free to merge tyins
-     */
-
     if (dep >= 10) return false;
 
     ty_instor ret_tyins;
@@ -202,6 +207,12 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     cout << "-----------------------" << endl;
     */
 
+    /*
+     * all in one
+     * decompose rule, delete rule, unused bvars elimination and type unify to
+     * avoid recursive calls of simplify
+     * since no type variable is introduces, feel free to merge tyins
+     */
     for (auto prev = obj.before_begin(), it = obj.begin(); it != obj.end(); ) {
         // type check
         if (it->first->ty != it->second->ty) {
@@ -257,6 +268,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
+
     /*
     cout << "after decomposition" << endl;
     for (auto &e : obj) cout << e << endl;
@@ -266,9 +278,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     /*
      * Deal with rsl
      */
-
     for (auto &e : rsl) e.first = beta_eta_term(e.first);
-
     for (auto prev = rsl.before_begin(), it = rsl.begin(); it != rsl.end(); ) {
         remove_dummy_bvar(it->first);
 
@@ -285,10 +295,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
-    /*
-     * Higher level semantic check
-     * We can never cover all cases, try our best to reduce undecidability
-     */
 
     /*
      * x mc/mc ==> x := \u. y
@@ -303,10 +309,10 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
+
     /*
      * Initialize disjoint union set
      */
-
     std::unordered_map<Term *, Term *> pre;
     for (auto &e : obj) {
         pre.emplace(e.first, e.first);
@@ -331,10 +337,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
 
     /*
-     * Guarantee every pairs in obj are either flex-flex or flex-rigid
-     * find (flex, rigid1) and (flex, rigid2)
-     * [(`x79529 x79528`, `x79523 = x79523`); (`x79529 x79528`, `x78504 x78505`); (`x78504 x78505`, `C256`)]
-     * is found, which means tree structure support is needed...
      * An example that might cause infinite loop:
      * [x, x = x] and [x, x = (x = x)]
      * After one step ==> [x = x, x = (x = x)] and [x, x = (x = x)]
@@ -343,8 +345,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      * To avoid this, always delete larger rigid term
      * TODO: improve this naive implementation
      */
-
-    for (auto &e1 : pre) if (!head_free(e1.first))
+    for (auto &e1 : pre) if (!head_free(e1.first)) {
         for (auto &e2 : pre)
             if (e1.first != e2.first && e1.second == e2.second && !head_free(e2.first)) {
                 Term *tm1 = e1.first, *tm2 = e2.first;
@@ -352,25 +353,21 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 /*
                  * delete tm1 and remain tm2
                  */
-                obj.clear();
-                for (auto &i1 : pre) if (i1.first == i1.second) {
-                    Term *prev = nullptr;
-                    for (auto &i2 : pre) if (i1.second == i2.second && i2.first != tm1) {
-                        if (prev != nullptr) obj.emplace_front(prev, i2.first);
-                        prev = i2.first;
-                    }
-                }
+                _delete_term_from_obj(obj, pre, tm1);
                 obj.emplace_front(tm1, tm2);
                 return simplify(obj, rsl, tyins, tmins, dep);
             }
+    }
+
 
     /*
      * For every instance of [x mc, y mc] and {x/mc, y/mc}, we can deduce x = y
+     * x and y need not to be leafs
      * TODO: think about generalized form of this reduction rule
      */
     for (auto it1 = pre.begin(); it1 != pre.end(); ++it1) if (it1->first->is_comb()) {
         Term *x = it1->first->rator(), *mx = it1->first->rand();
-        if (x->is_leaf() && mx->is_leaf()) {
+        if (mx->is_leaf() && mx->idx >= kn::LO_CONST_TERM && mx->idx < kn::MD_CONST_TERM) {
             bool ok = false;
             for (auto &e : rsl) if (e.second == mx->idx) {
                 if (x == e.first) {
@@ -390,18 +387,18 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 auto it2 = it1;
                 for (++it2; it2 != pre.end(); ++it2) if (it2->first->is_comb() && it1->second == it2->second) {
                     Term *y = it2->first->rator(), *my = it2->first->rand();
-                    if (y->is_leaf() && my->is_leaf() && x != y && mx->idx == my->idx) {
+                    if (my->is_leaf() && mx->idx == my->idx && x != y) {
                         for (auto &e : rsl) if (e.second == my->idx) {
-                            if (y == e.first) {
-                                insert_tmins(x->idx, y, tmins);
-                                _update(x->idx, y, obj, rsl);
-                                return simplify(obj, rsl, tyins, tmins, dep);
+                            ok = false;
+                            if (y == e.first) ok = true;
+                            else {
+                                auto i1 = pre.find(e.first);
+                                auto i2 = pre.find(y);
+                                if (i1 != pre.end() && i2 != pre.end() && i1->second == i2->second) ok = true;
                             }
-                            auto i1 = pre.find(e.first);
-                            auto i2 = pre.find(y);
-                            if (i1 != pre.end() && i2 != pre.end() && i1->second == i2->second) {
-                                insert_tmins(x->idx, y, tmins);
-                                _update(x->idx, y, obj, rsl);
+                            if (ok) {
+                                _delete_term_from_obj(obj, pre, it1->first);
+                                obj.emplace_front(x, y);
                                 return simplify(obj, rsl, tyins, tmins, dep);
                             }
                         }
@@ -411,13 +408,17 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
+
     /*
-     * x and (x = y)
+     * x and x is a rigid-position of y
+     * i.e., x and \u. u (x = y)
      */
-    for (auto &e1 : pre) if (e1.first->is_leaf() && kn::is_fvar(e1.first, 0))
+    for (auto &e1 : pre) if (head_free(e1.first)) {
         for (auto &e2 : pre)
-            if (_subterm(e1.first, e2.first))
+            if (e1.second == e2.second && e1.first->size < e2.first->size && _subterm(e1.first, e2.first))
                 return false;
+    }
+
 
     /*
      * Projection is impossible
@@ -467,6 +468,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             }
         }
     }
+
 
     return true;
 }

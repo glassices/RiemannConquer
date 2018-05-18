@@ -299,18 +299,18 @@ void searcher_test()
     puts("--------------------------------");
     */
 
-    /*
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
     search(p_imp_p, 5);
-    */
 
     /*
      * p /\ q ==> p
      * (==>) ((/\) p q) p
      */
+    /*
     Term *p_and_q_imp_p = expand(mk_lcomb({mk_var(booo, 4), mk_lcomb({mk_var(booo, 3), p, q}), p}));
     search(p_and_q_imp_p, 5);
     puts("--------------------------------");
+    */
 
 }
 
