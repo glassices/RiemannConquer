@@ -252,7 +252,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
             it = obj.erase_after(prev);
             for (auto it1 = args1.begin(), it2 = args2.begin(); it1 != args1.end(); ++it1, ++it2) {
-                it = obj.emplace_after(prev, mk_labs(bvs1, *it1), mk_labs(bvs1, *it2));
+                it = obj.emplace_after(prev, mk_neta_labs(bvs1, *it1), mk_neta_labs(bvs1, *it2));
             }
         }
     }
@@ -281,7 +281,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         else {
             it = rsl.erase_after(prev);
             for (auto &e : args1)
-                it = rsl.emplace_after(prev, mk_labs(bvs1, e), c);
+                it = rsl.emplace_after(prev, mk_neta_labs(bvs1, e), c);
         }
     }
 

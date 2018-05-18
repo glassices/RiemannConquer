@@ -252,6 +252,18 @@ Term *mk_labs(const std::vector<Type *> &bvs, Term *tm)
     return tm;
 }
 
+Term *mk_neta_labs(const std::vector<Type *> &bvs, Term *tm)
+{
+    auto it = bvs.rbegin();
+    while (it != bvs.rend() && is_eta(tm)) {
+        ++it;
+        tm = kn::lift(tm->rator(), -1);
+    }
+    for ( ; it != bvs.rend(); ++it)
+        tm = kn::mk_abs(*it, tm);
+    return tm;
+}
+
 Term *compose(const std::vector<Type *> &bvs, Term *hs, const std::vector<Term *> &args)
 {
     return mk_labs(bvs, mk_lcomb(hs, args));
@@ -283,7 +295,7 @@ int ord_of_type(Type *ty)
         return std::max(ord_of_type(ty->dom()) + 1, ord_of_type(ty->cod()));
 }
 
-bool _is_eta(Term *tm)
+bool is_eta(Term *tm)
 {
     return tm->is_comb() && tm->rand()->is_leaf() && tm->rand()->idx == 0 && !vfree_in(0, tm->rator());
 }
@@ -298,8 +310,8 @@ void bound_eta_norm(Term *&tm1, Term *&tm2)
             tm2 = kn::lift(bod2, -1);
         }
         else {
-            tm1 = _is_eta(bod1) ? kn::lift(bod1->rator(), -1) : kn::mk_abs(tm1->ty->dom(), bod1);
-            tm2 = _is_eta(bod2) ? kn::lift(bod2->rator(), -1) : kn::mk_abs(tm2->ty->dom(), bod2);
+            tm1 = is_eta(bod1) ? kn::lift(bod1->rator(), -1) : kn::mk_abs(tm1->ty->dom(), bod1);
+            tm2 = is_eta(bod2) ? kn::lift(bod2->rator(), -1) : kn::mk_abs(tm2->ty->dom(), bod2);
         }
     }
 }
@@ -389,8 +401,8 @@ Term *beta_eta_term(Term *tm)
     else {
         Term *bod = beta_eta_term(tm->bod());
         // eta-reduction
-        Term *ret = _is_eta(bod) ? kn::lift(bod->rator(), -1)
-                                 : kn::mk_abs(tm->ty->dom(), bod);
+        Term *ret = is_eta(bod) ? kn::lift(bod->rator(), -1)
+                                : kn::mk_abs(tm->ty->dom(), bod);
         kn::nform_map.insert(tm, ret);
         return ret;
     }
