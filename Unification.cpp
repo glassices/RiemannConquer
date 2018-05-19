@@ -157,14 +157,14 @@ bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
     return true;
 }
 
-void _delete_term_from_obj(obj_type &obj, std::unordered_map<Term *, Term *> &pre, Term *tm)
+void _delete_term_from_obj(obj_type &obj, std::vector<Term *> &tms, std::unordered_map<Term *, Term *> &pre, Term *tm)
 {
     obj.clear();
-    for (auto &i1 : pre) if (i1.first == i1.second) {
+    for (auto &e1 : tms) if (pre[e1] == e1) {
         Term *prev = nullptr;
-        for (auto &i2 : pre) if (i1.second == i2.second && i2.first != tm) {
-            if (prev != nullptr) obj.emplace_front(prev, i2.first);
-            prev = i2.first;
+        for (auto &e2 : tms) if (pre[e2] == e1 && e2 != tm) {
+            if (prev != nullptr) obj.emplace_front(prev, e2);
+            prev = e2;
         }
     }
 }
@@ -361,7 +361,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             if (e1 != e2 && pre[e1] == pre[e2] && !head_free(e2)) {
                 Term *tm1 = e1, *tm2 = e2;
                 if (tm1->size < tm2->size) std::swap(tm1, tm2);
-                _delete_term_from_obj(obj, pre, tm1);
+                _delete_term_from_obj(obj, tms, pre, tm1);
                 obj.emplace_front(tm1, tm2);
                 return simplify(obj, rsl, tyins, tmins, dep);
             }
@@ -405,7 +405,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                                 if (i1 != pre.end() && i2 != pre.end() && i1->second == i2->second) ok = true;
                             }
                             if (ok) {
-                                _delete_term_from_obj(obj, pre, *it1);
+                                _delete_term_from_obj(obj, tms, pre, *it1);
                                 obj.emplace_front(x, y);
                                 return simplify(obj, rsl, tyins, tmins, dep);
                             }
