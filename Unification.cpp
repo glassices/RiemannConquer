@@ -182,24 +182,12 @@ void _delete_term_from_obj(obj_type &obj, std::vector<Term *> &tms, std::unorder
  */
 bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, int dep)
 {
-    /*
-     * beta_eta_norm and pair-type check cost comparably small time so we
-     * do it brainlessly
-     */
-
-
     if (dep >= 10) return false;
 
     ty_instor ret_tyins;
     std::vector<Type *> bvs1, bvs2;
     Term *hs1, *hs2;
     std::vector<Term *> args1, args2;
-
-    // beta-eta-norm check
-    for (auto &e : obj) {
-        e.first = beta_eta_term(e.first);
-        e.second = beta_eta_term(e.second);
-    }
 
     /*
     cout << "before decomposition" << endl;
@@ -263,7 +251,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
             it = obj.erase_after(prev);
             for (auto it1 = args1.begin(), it2 = args2.begin(); it1 != args1.end(); ++it1, ++it2) {
-                it = obj.emplace_after(prev, mk_neta_labs(bvs1, *it1), mk_neta_labs(bvs1, *it2));
+                it = obj.emplace_after(prev, mk_nlabs(bvs1, *it1), mk_nlabs(bvs1, *it2));
             }
         }
     }
@@ -278,7 +266,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     /*
      * Deal with rsl
      */
-    for (auto &e : rsl) e.first = beta_eta_term(e.first);
     for (auto prev = rsl.before_begin(), it = rsl.begin(); it != rsl.end(); ) {
         remove_dummy_bvar(it->first);
 
@@ -291,7 +278,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         else {
             it = rsl.erase_after(prev);
             for (auto &e : args1)
-                it = rsl.emplace_after(prev, mk_neta_labs(bvs1, e), c);
+                it = rsl.emplace_after(prev, mk_nlabs(bvs1, e), c);
         }
     }
 

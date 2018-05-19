@@ -59,8 +59,8 @@ void Node::update_all(ty_instor &tyins, tm_instor &tmins)
     if (p1) p1->update_all(tyins, tmins);
     if (p2) p2->update_all(tyins, tmins);
     if (is_leaf() || (par && par->tag == Node::deduct))
-        tm = beta_eta_term(vsubst(tmins, inst(tyins, tm)));
-    //tm = beta_eta_term(vsubst(tmins, inst(tyins, tm)));
+        tm = vsubst(tmins, inst(tyins, tm));
+    //tm = vsubst(tmins, inst(tyins, tm));
 }
 
 ProofGraph::ProofGraph()
@@ -98,13 +98,6 @@ ProofGraph &ProofGraph::operator=(ProofGraph other)
  * Here comes the most exciting parts!!!
  * Node k should be inside the proof graph, otherwise undefined behavior occurs
  */
-
-int _nnode(Node *k)
-{
-    if (k->is_binary()) return 1 + _nnode(k->p1) + _nnode(k->p2);
-    else if (k->is_unary()) return 1 + _nnode(k->p1);
-    else return 0;
-}
 
 bool ProofGraph::distill()
 {

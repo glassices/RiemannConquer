@@ -47,7 +47,7 @@ void update_instor(const ty_instor &, int, Term *, ty_instor &, tm_instor &);
 
 bool tfree_in(int, Type *);
 
-bool vfree_in(int, Term *, int = 0);
+bool vfree_in(int, Term *);
 
 Term *inst(const ty_instor &, Term *);
 Term *inst(const ty_instor &, Term *, std::unordered_map<Term *, Term *> &);
@@ -64,29 +64,25 @@ void decompose(Term *, std::vector<Type *> &, Term *&, std::vector<Term *> &);
 Term *mk_lcomb(Term *, const std::vector<Term *> &);
 Term *mk_lcomb(std::initializer_list<Term *>);
 Term *mk_labs(const std::vector<Type *> &, Term *);
-Term *mk_neta_labs(const std::vector<Type *> &, Term *);
+Term *mk_nlabs(const std::vector<Type *> &, Term *);
 Term *compose(const std::vector<Type *> &, Term*, const std::vector<Term *> &);
+
+Term *mk_ncomb(Term *, Term *); // Internalize beta-normalization
+Term *mk_nabs(Type *, Term *); // Internalize eta-normalization
 
 Term *get_head(Term *);
 bool head_free(Term *);
 int ord_of_type(Type *);
 
+Term *do_beta(Term *, Term *, int = 0);
 bool is_eta(Term *);
 void bound_eta_norm(Term *&, Term *&);
 void remove_dummy_bvar(Term *&);
 
-Term *application(Term *, Term *);
 Term *abstraction(int, Type *, Term *);
-
-Term *beta_eta_term(Term *);
 
 void get_free_types(Type *, std::unordered_set<int> &);
 void get_frees(Term *, std::unordered_set<int> &, std::unordered_set<Term *> &, int = 0);
-
-void get_types(Type *, std::unordered_set<Type *> &);
-void get_terms(Term *, std::unordered_set<Type *> &, std::unordered_set<Term *> &);
-
-void distill_type(Type *, std::unordered_set<int> &, std::unordered_set<Type*> &);
 
 /*
  * Naive printers for map, vector

@@ -171,8 +171,6 @@ namespace kn
         }
     };
 
-    extern PersistentMap<Term *, Term *, std::hash<Term *>> nform_map;
-
     extern PersistentMap<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
 
     extern PersistentMap<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;

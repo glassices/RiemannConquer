@@ -11,10 +11,10 @@ using namespace std;
 Node *_cores(Node *node, Node *root)
 {
     // find the corresponding node in root
-    std::vector<bool> choice; // is_p1
+    std::vector<bool> cs; // is_p1
     for ( ; node->par; node = node->par)
-        choice.push_back(node == node->par->p1);
-    for (auto it = choice.rbegin(); it != choice.rend(); ++it)
+        cs.push_back(node == node->par->p1);
+    for (auto it = cs.rbegin(); it != cs.rend(); ++it)
         root = *it ? root->p1 : root->p2;
     return root;
 }
@@ -124,8 +124,8 @@ thm _get_proof(Node *k)
         else if (k->tag == Node::mk_comb) {
             assert(kn::is_equal(c1) && kn::is_equal(c2) && c1->rand()->ty->dom() == c2->rand()->ty);
             asl1.insert(asl2.begin(), asl2.end());
-            Term *tm1 = beta_eta_term(kn::mk_comb(c1->rator()->rand(), c2->rator()->rand()));
-            Term *tm2 = beta_eta_term(kn::mk_comb(c1->rand(), c2->rand()));
+            Term *tm1 = mk_ncomb(c1->rator()->rand(), c2->rator()->rand());
+            Term *tm2 = mk_ncomb(c1->rand(), c2->rand());
             thm th(asl1, kn::mk_eq(tm1, tm2));
             std::cout << "MK_COMB\t" << th << std::endl;
             return th;

@@ -168,7 +168,6 @@ namespace kn {
 
     Type *const bool_ty = mk_atom(0);
 
-    PersistentMap<Term *, Term *, std::hash<Term *>> nform_map;
     PersistentMap<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
     PersistentMap<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
 
@@ -178,7 +177,6 @@ namespace kn {
         term_name_pool.add_ckpt();
         type_pointer_pool.add_ckpt();
         term_pointer_pool.add_ckpt();
-        nform_map.add_ckpt();
         beta_map.add_ckpt();
         lift_map.add_ckpt();
     }
@@ -189,7 +187,6 @@ namespace kn {
         term_name_pool.rec_ckpt();
         type_pointer_pool.rec_ckpt();
         term_pointer_pool.rec_ckpt();
-        nform_map.rec_ckpt();
         beta_map.rec_ckpt();
         lift_map.rec_ckpt();
     }

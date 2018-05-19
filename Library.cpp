@@ -37,8 +37,8 @@ void insert_tyins(const ty_instor &theta, ty_instor &tyins)
 
 void insert_tmins(int idx, Term *sub, tm_instor &tmins)
 {
-    for (auto &e : tmins) e.second = beta_eta_term(vsubst(idx, sub, e.second));
-    tmins.insert(std::make_pair(idx, sub));
+    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
+    tmins.emplace(idx, sub);
 }
 
 void update_tyins(int idx, Type *sub, ty_instor &tyins)
@@ -53,7 +53,7 @@ void update_tyins(const ty_instor &theta, ty_instor &tyins)
 
 void update_tmins(int idx, Term *sub, tm_instor &tmins)
 {
-    for (auto &e : tmins) e.second = beta_eta_term(vsubst(idx, sub, e.second));
+    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
 }
 
 void update_tmins(const ty_instor &theta, tm_instor &tmins)
@@ -63,7 +63,7 @@ void update_tmins(const ty_instor &theta, tm_instor &tmins)
 
 void update_tmins(const tm_instor &theta, tm_instor &tmins)
 {
-    for (auto &e : tmins) e.second = beta_eta_term(vsubst(theta, e.second));
+    for (auto &e : tmins) e.second = vsubst(theta, e.second);
 }
 
 void update_instor(const ty_instor &_tyins, const tm_instor &_tmins, ty_instor &tyins, tm_instor &tmins)
@@ -90,14 +90,14 @@ bool tfree_in(int idx, Type *ty)
         return idx == ty->idx;
 }
 
-bool vfree_in(int idx, Term *tm, int scope)
+bool vfree_in(int idx, Term *tm)
 {
     if (tm->is_comb())
-        return vfree_in(idx, tm->rator(), scope) || vfree_in(idx, tm->rand(), scope);
+        return vfree_in(idx, tm->rator()) || vfree_in(idx, tm->rand());
     else if (tm->is_abs())
-        return vfree_in(idx, tm->bod(), scope + 1);
+        return vfree_in(idx + 1, tm->bod());
     else
-        return tm->idx == scope + idx;
+        return tm->idx == idx;
 }
 
 Term *inst(const ty_instor &theta, Term *tm)
@@ -142,11 +142,11 @@ Term *vsubst(int idx, Term *sub, Term *tm, int scope)
     if (tm->is_comb()) {
         Term *tm1 = vsubst(idx, sub, tm->rator(), scope);
         Term *tm2 = vsubst(idx, sub, tm->rand(), scope);
-        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
     }
     else if (tm->is_abs()) {
         Term *tmb = vsubst(idx, sub, tm->bod(), scope + 1);
-        return tmb == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmb);
+        return tmb == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmb);
     }
     else
         return tm->idx == idx + scope ? kn::lift(sub, scope) : tm;
@@ -169,11 +169,11 @@ Term *vsubst(int idx, Term *sub, Term *tm,
         if (tm->is_comb()) {
             Term *tm1 = vsubst(idx, sub, tm->rator(), mvsub, scope);
             Term *tm2 = vsubst(idx, sub, tm->rand(), mvsub, scope);
-            return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+            return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
         }
         else {
             Term *tmb = vsubst(idx, sub, tm->bod(), mvsub, scope + 1);
-            return mvsub[key] = tmb == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmb);
+            return mvsub[key] = tmb == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmb);
         }
     }
 }
@@ -182,11 +182,11 @@ Term *vsubst(const tm_instor &tmins, Term *tm, int scope)
 {
     if (tm->is_comb()) {
         Term *tm1 = vsubst(tmins, tm->rator(), scope), *tm2 = vsubst(tmins, tm->rand(), scope);
-        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
     }
     else if (tm->is_abs()) {
         Term *tmm = vsubst(tmins, tm->bod(), scope + 1);
-        return tmm == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmm);
+        return tmm == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmm);
     }
     else if (tm->idx >= scope) {
         auto it = tmins.find(tm->idx - scope);
@@ -209,11 +209,11 @@ Term *vsubst(const tm_instor &tmins, Term *tm,
     if (tm->is_comb()) {
         Term *tm1 = vsubst(tmins, tm->rator(), mvsub, scope);
         Term *tm2 = vsubst(tmins, tm->rand(), mvsub, scope);
-        return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+        return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
     }
     else if (tm->is_abs()) {
         Term *tmm = vsubst(tmins, tm->bod(), mvsub, scope + 1);
-        return mvsub[key] = tmm == tm->bod() ? tm : kn::mk_abs(tm->ty->dom(), tmm);
+        return mvsub[key] = tmm == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmm);
     }
     else if (tm->idx >= scope) {
         auto it = tmins.find(tm->idx - scope);
@@ -277,7 +277,7 @@ Term *mk_labs(const std::vector<Type *> &bvs, Term *tm)
     return tm;
 }
 
-Term *mk_neta_labs(const std::vector<Type *> &bvs, Term *tm)
+Term *mk_nlabs(const std::vector<Type *> &bvs, Term *tm)
 {
     auto it = bvs.rbegin();
     while (it != bvs.rend() && is_eta(tm)) {
@@ -292,6 +292,18 @@ Term *mk_neta_labs(const std::vector<Type *> &bvs, Term *tm)
 Term *compose(const std::vector<Type *> &bvs, Term *hs, const std::vector<Term *> &args)
 {
     return mk_labs(bvs, mk_lcomb(hs, args));
+}
+
+Term *mk_ncomb(Term *tm1, Term *tm2)
+{
+    assert(tm1->ty->dom() == tm2->ty);
+
+    return tm1->is_abs() ? do_beta(tm1->bod(), tm2, 0) : kn::mk_comb(tm1, tm2);
+}
+
+Term *mk_nabs(Type *ty, Term *tm)
+{
+    return is_eta(tm) ? kn::lift(tm->rator(), -1) : kn::mk_abs(ty, tm);
 }
 
 Term *get_head(Term *tm)
@@ -335,8 +347,8 @@ void bound_eta_norm(Term *&tm1, Term *&tm2)
             tm2 = kn::lift(bod2, -1);
         }
         else {
-            tm1 = is_eta(bod1) ? kn::lift(bod1->rator(), -1) : kn::mk_abs(tm1->ty->dom(), bod1);
-            tm2 = is_eta(bod2) ? kn::lift(bod2->rator(), -1) : kn::mk_abs(tm2->ty->dom(), bod2);
+            tm1 = mk_nabs(tm1->ty->dom(), bod1);
+            tm2 = mk_nabs(tm2->ty->dom(), bod2);
         }
     }
 }
@@ -350,17 +362,17 @@ void remove_dummy_bvar(Term *&tm)
         if (!vfree_in(0, bod))
             tm = kn::lift(bod, -1);
         else
-            tm = kn::mk_abs(tm->ty->dom(), bod);
+            tm = mk_nabs(tm->ty->dom(), bod);
     }
 }
 
 /*
- * reduce `tm1 tm2` where tm1 is abs
- * replace all 0 in tm1->bod with tm2 and
+ * reduce `\x. tm` and sub
+ * replace all 0 in x with tm2 and
  * reduce all positive idx by one
  */
 
-Term *_beta(Term *tm, Term *sub, int scope)
+Term *do_beta(Term *tm, Term *sub, int scope)
 {
     std::tuple<Term *, Term *, int> key(tm, sub, scope);
     auto it = kn::beta_map.hmap.find(key);
@@ -368,9 +380,9 @@ Term *_beta(Term *tm, Term *sub, int scope)
 
     Term *ret;
     if (tm->is_comb())
-        ret = kn::mk_comb(_beta(tm->rator(), sub, scope), _beta(tm->rand(), sub, scope));
+        ret = mk_ncomb(do_beta(tm->rator(), sub, scope), do_beta(tm->rand(), sub, scope));
     else if (tm->is_abs())
-        ret = kn::mk_abs(tm->ty->dom(), _beta(tm->bod(), sub, scope + 1));
+        ret = mk_nabs(tm->ty->dom(), do_beta(tm->bod(), sub, scope + 1));
     else if (tm->idx == scope)
         ret = kn::lift(sub, scope);
     else if (tm->idx > scope)
@@ -379,13 +391,6 @@ Term *_beta(Term *tm, Term *sub, int scope)
         ret = tm;
     kn::beta_map.insert(key, ret);
     return ret;
-}
-
-Term *application(Term *tm1, Term *tm2)
-{
-    assert(tm1->is_abs() && tm1->ty->dom() == tm2->ty);
-
-    return _beta(tm1->bod(), tm2, 0);
 }
 
 Term *_reorder(int x, int scope, Term *tm)
@@ -406,31 +411,6 @@ Term *_reorder(int x, int scope, Term *tm)
 Term *abstraction(int x, Type *ty, Term *tm)
 {
     return kn::mk_abs(ty, _reorder(x, 0, tm));
-}
-
-Term *beta_eta_term(Term *tm)
-{
-    if (tm->is_leaf()) return tm;
-
-    // this hash method is very naive
-    auto it = kn::nform_map.hmap.find(tm);
-    if (it != kn::nform_map.hmap.end()) return it->second;
-
-    if (tm->is_comb()) {
-        Term *tm1 = beta_eta_term(tm->rator());
-        Term *ret = tm1->is_abs() ? beta_eta_term(application(tm1, tm->rand()))
-                                  : kn::mk_comb(tm1, beta_eta_term(tm->rand()));
-        kn::nform_map.insert(tm, ret);
-        return ret;
-    }
-    else {
-        Term *bod = beta_eta_term(tm->bod());
-        // eta-reduction
-        Term *ret = is_eta(bod) ? kn::lift(bod->rator(), -1)
-                                : kn::mk_abs(tm->ty->dom(), bod);
-        kn::nform_map.insert(tm, ret);
-        return ret;
-    }
 }
 
 void get_free_types(Type *ty, std::unordered_set<int> &ty_set)
@@ -457,47 +437,6 @@ void get_frees(Term *tm, std::unordered_set<int> &ty_set, std::unordered_set<Ter
         get_free_types(tm->ty, ty_set);
         if (kn::is_fvar(tm, scope))
             tm_set.insert(kn::mk_var(tm->ty, tm->idx - scope));
-    }
-}
-
-void get_types(Type *ty, std::unordered_set<Type *> &tset)
-{
-    if (tset.find(ty) == tset.end()) {
-        tset.insert(ty);
-        if (ty->is_fun()) {
-            get_types(ty->dom(), tset);
-            get_types(ty->cod(), tset);
-        }
-    }
-}
-
-void get_terms(Term *tm, std::unordered_set<Type *> &tyset, std::unordered_set<Term *> &tmset)
-{
-    if (tmset.find(tm) == tmset.end()) {
-        tmset.insert(tm);
-        if (tm->is_comb()) {
-            get_terms(tm->rator(), tyset, tmset);
-            get_terms(tm->rand(), tyset, tmset);
-        }
-        else if (tm->is_abs()) {
-            get_types(tm->ty->dom(), tyset);
-            get_terms(tm->bod(), tyset, tmset);
-        }
-        else
-            get_types(tm->ty, tyset);
-    }
-}
-
-void distill_type(Type *ty, std::unordered_set<int> &ty_name, std::unordered_set<Type *> &ty_ptr)
-{
-    if (ty_ptr.find(ty) == ty_ptr.end()) {
-        ty_ptr.insert(ty);
-        if (ty->is_fun()) {
-            distill_type(ty->dom(), ty_name, ty_ptr);
-            distill_type(ty->cod(), ty_name, ty_ptr);
-        }
-        else
-            ty_name.insert(ty->idx);
     }
 }
 
