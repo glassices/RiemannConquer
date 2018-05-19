@@ -471,14 +471,9 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     Term *hs1, *hs2, *sub;
     std::vector<Term *> args1, args2;
 
-    //std::cout << "before simplify:    " << obj << std::endl;
     if (!simplify(obj, rsl, _tyins, _tmins)) return false;
-    //std::cout << "after simplify:    " << obj << std::endl;
     update_instor(_tyins, _tmins, tyins, tmins);
 
-    for (auto &e : obj) if (e.first->size > 50 || e.second->size > 50) return false;
-    for (auto &e : rsl) if (e.first->size > 50) return false;
-    for (auto &e : tmins) if (e.second->size > 50) return false;
 
     std::pair<Term *, Term *> best;
     int ord, min_order = 1000000;
@@ -505,9 +500,13 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
         // Imitation
         if (kn::is_const(hs2, static_cast<int>(bvs2.size()))) {
             _imitate(hs1->ty, kn::mk_var(hs2->ty, hs2->idx - static_cast<int>(bvs2.size())), sub);
-            update_tmins(idx, sub, tmins);
-            _update(idx, sub, obj, rsl);
-            if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
+            kn::save_maps();
+            try {
+                update_tmins(idx, sub, tmins);
+                _update(idx, sub, obj, rsl);
+                if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
+            } catch (kn::MemoryLimitExceeded &e) {}
+            kn::load_maps();
             obj = obj_save;
             rsl = rsl_save;
             tmins = tmins_save;
@@ -516,9 +515,13 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
         // Projection
         for (int k = 0; k < hs1->ty->arity(); k++) {
             if (!_project(hs1->ty, k, sub, _tyins)) continue;
-            update_instor(_tyins, idx, sub, tyins, tmins);
-            _tyins.size() ? _update(_tyins, idx, sub, obj, rsl) : _update(idx, sub, obj, rsl);
-            if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
+            kn::save_maps();
+            try {
+                update_instor(_tyins, idx, sub, tyins, tmins);
+                !_tyins.empty() ? _update(_tyins, idx, sub, obj, rsl) : _update(idx, sub, obj, rsl);
+                if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
+            } catch (kn::MemoryLimitExceeded &e) {}
+            kn::load_maps();
             obj = obj_save;
             rsl = rsl_save;
             tyins = tyins_save;

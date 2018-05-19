@@ -389,6 +389,8 @@ Term *do_beta(Term *tm, Term *sub, int scope)
         ret = kn::mk_var(tm->ty, tm->idx - 1);
     else
         ret = tm;
+    if (kn::beta_map.hmap.size() >= kn::MEMORY_LIMIT)
+        throw kn::MemoryLimitExceeded();
     kn::beta_map.insert(key, ret);
     return ret;
 }

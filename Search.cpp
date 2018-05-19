@@ -44,64 +44,65 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
 {
     kn::save_maps();
     //cout << state.root << rem_node << endl;
-    Node *todo = _get_todo(state.root);
-    if (todo) {
-        ProofGraph next_state;
-        if (rem_node > 0) {
-            next_state = state;
-            if (next_state.req_mp(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                state = next_state;
-                return true;
+    try {
+        Node *todo = _get_todo(state.root);
+        if (todo) {
+            ProofGraph next_state;
+            if (rem_node > 0) {
+                next_state = state;
+                if (next_state.req_mp(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
+                    state = next_state;
+                    return true;
+                }
+
+                next_state = state;
+                if (next_state.rmk_comb(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
+                    state = next_state;
+                    return true;
+                }
+
+                next_state = state;
+                if (next_state.rtrans(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
+                    state = next_state;
+                    return true;
+                }
+
+                next_state = state;
+                if (next_state.rdeduct(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
+                    state = next_state;
+                    return true;
+                }
+
+                next_state = state;
+                if (next_state.rabs(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
+                    state = next_state;
+                    return true;
+                }
+            }
+
+            int ndeduct = _count_deduct(todo);
+            for (int i = 0; i < ndeduct; i++) {
+                next_state = state;
+                if (next_state.rassume(_cores(todo, next_state.root), i) && _naive_dfs(next_state, rem_node)) {
+                    state = next_state;
+                    return true;
+                }
             }
 
             next_state = state;
-            if (next_state.rmk_comb(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
+            if (next_state.rrefl(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node)) {
                 state = next_state;
                 return true;
             }
-
-            next_state = state;
-            if (next_state.rtrans(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                state = next_state;
-                return true;
-            }
-
-            next_state = state;
-            if (next_state.rdeduct(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                state = next_state;
-                return true;
-            }
-
-            next_state = state;
-            if (next_state.rabs(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                state = next_state;
+        } else {
+            // all nodes are closed and do unification
+            std::pair<ty_instor, tm_instor> res;
+            if (term_unify(state.obj, state.rsl, res)) {
+                state.root->update_all(res.first, res.second);
                 return true;
             }
         }
-
-        int ndeduct = _count_deduct(todo);
-        for (int i = 0; i < ndeduct; i++) {
-            next_state = state;
-            if (next_state.rassume(_cores(todo, next_state.root), i) && _naive_dfs(next_state, rem_node)) {
-                state = next_state;
-                return true;
-            }
-        }
-
-        next_state = state;
-        if (next_state.rrefl(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node)) {
-            state = next_state;
-            return true;
-        }
-    }
-    else {
-        // all nodes are closed and do unification
-        std::pair<ty_instor, tm_instor> res;
-        if (term_unify(state.obj, state.rsl, res)) {
-            state.root->update_all(res.first, res.second);
-            return true;
-        }
-    }
+    } catch (kn::MemoryLimitExceeded &e) {}
     kn::load_maps();
     return false;
 }
