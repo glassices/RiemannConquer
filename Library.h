@@ -11,51 +11,45 @@
 typedef std::unordered_map<int, Type *> ty_instor;
 typedef std::unordered_map<int, Term *> tm_instor;
 
-struct pair_hash
+struct hterm_scope
 {
-    template <class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2> &p) const
+    std::size_t operator()(const std::pair<Term *, int> &p) const
     {
-        auto h1 = std::hash<T1>{}(p.first);
-        auto h2 = std::hash<T2>{}(p.second);
-        return (h1 << 1) ^ h2;
+        return std::hash<Term *>{}(p.first) ^ (p.second << 10);
     }
 };
 
-template <class T>
-T &assocd(T &key, std::unordered_map<T, T> &pmap, T &def)
-{
-    auto it = pmap.find(key);
-    return it != pmap.end() ? it->second : def;
-}
-
+typedef std::unordered_map<std::pair<Term *, int>, Term *, hterm_scope> vdict;
+typedef std::unordered_map<Term *, Term *> idict;
 
 Type *type_subst(int, Type *, Type *);
 Type *type_subst(const ty_instor &, Type *);
-
 void insert_tyins(int, Type *, ty_instor &);
 void insert_tyins(const ty_instor &, ty_instor &);
-void insert_tmins(int, Term *, tm_instor &);
-
 void update_tyins(int, Type *, ty_instor &);
 void update_tyins(const ty_instor &, ty_instor &);
-void update_tmins(int, Term *, tm_instor &);
-void update_tmins(const ty_instor &, tm_instor &);
-void update_tmins(const tm_instor &, tm_instor &);
-void update_instor(const ty_instor &, const tm_instor &, ty_instor &, tm_instor &);
-void update_instor(const ty_instor &, int, Term *, ty_instor &, tm_instor &);
+
+
+Term *raw_inst(const ty_instor &, Term *);
+Term *inst(const ty_instor &, Term *, idict &);
+void update_tmins(const ty_instor &, tm_instor &, idict &);
+
+
+Term *vsubst(int, Term *, Term *, vdict &, int = 0);
+Term *vsubst(const tm_instor &, Term *, vdict &, int = 0);
+void insert_tmins(int, Term *, tm_instor &, vdict &);
+void update_tmins(int, Term *, tm_instor &, vdict &);
+void update_tmins(const tm_instor &, tm_instor &, vdict &);
+
+Term *mixsub(const ty_instor &, int, Term *, Term *, vdict &, int = 0);
+Term *mixsub(const ty_instor &, const tm_instor &, Term *, vdict &, int = 0);
+void update_tmins(const ty_instor &, int, Term *, tm_instor &, vdict &);
+void update_tmins(const ty_instor &, const tm_instor &, tm_instor &, vdict &);
 
 bool tfree_in(int, Type *);
 
 bool vfree_in(int, Term *);
 
-Term *inst(const ty_instor &, Term *);
-Term *inst(const ty_instor &, Term *, std::unordered_map<Term *, Term *> &);
-
-Term *vsubst(int, Term *, Term *, int = 0);
-Term *vsubst(int, Term *, Term *, std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> &, int = 0);
-Term *vsubst(const tm_instor &, Term *, int = 0);
-Term *vsubst(const tm_instor &, Term *, std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> &, int = 0);
 
 void strip_comb(Term *, Term *&, std::vector<Term *> &);
 void strip_abs(Term *, std::vector<Type *> &, Term *&);

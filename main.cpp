@@ -54,7 +54,7 @@ Term *_expand(Term *tm, int c, Term *def, int scope)
     else if (tm->idx == scope + c) {
         ty_instor tyins;
         type_unify(tm->ty, def->ty, tyins);
-        return inst(tyins, lift(def, scope));
+        return raw_inst(tyins, lift(def, scope));
     }
     else
         return tm;

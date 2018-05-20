@@ -97,7 +97,8 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
             // all nodes are closed and do unification
             std::pair<ty_instor, tm_instor> res;
             if (term_unify(state.obj, state.rsl, res)) {
-                state.root->update_all(res.first, res.second);
+                vdict vhis;
+                state.root->update_all(res.first, res.second, vhis);
                 return true;
             }
         }

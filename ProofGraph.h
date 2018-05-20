@@ -24,7 +24,7 @@ struct Node
 
     Node *duplicate();
     void delete_all();
-    void update_all(ty_instor &, tm_instor &);
+    void update_all(const ty_instor &, const tm_instor &, vdict &);
 };
 
 class ProofGraph

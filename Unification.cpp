@@ -4,8 +4,7 @@
 
 #include "Unification.h"
 #include <iostream>
-#include <ctime>
-#include <algorithm>
+#include <utility>
 
 using namespace std;
 
@@ -54,35 +53,31 @@ bool type_unify(std::vector<std::pair<Type *, Type *>> &task, ty_instor &tyins)
     return true;
 }
 
-void _update(ty_instor &tyins, obj_type &obj, rsl_type &rsl)
+void _update(ty_instor &tyins, obj_type &obj, rsl_type &rsl, idict &ihis)
 {
-    std::unordered_map<Term *, Term *> minst;
     for (auto &e : obj) {
-        e.first = inst(tyins, e.first, minst);
-        e.second = inst(tyins, e.second, minst);
+        e.first = inst(tyins, e.first, ihis);
+        e.second = inst(tyins, e.second, ihis);
     }
-    for (auto &e : rsl) e.first = inst(tyins, e.first, minst);
+    for (auto &e : rsl) e.first = inst(tyins, e.first, ihis);
 }
 
-void _update(int fv, Term *tm, obj_type &obj, rsl_type &rsl)
+void _update(int fv, Term *tm, obj_type &obj, rsl_type &rsl, vdict &vhis)
 {
-    std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> mvsub;
     for (auto &e : obj) {
-        e.first = vsubst(fv, tm, e.first, mvsub);
-        e.second = vsubst(fv, tm, e.second, mvsub);
+        e.first = vsubst(fv, tm, e.first, vhis);
+        e.second = vsubst(fv, tm, e.second, vhis);
     }
-    for (auto &e : rsl) e.first = vsubst(fv, tm, e.first, mvsub);
+    for (auto &e : rsl) e.first = vsubst(fv, tm, e.first, vhis);
 }
 
-void _update(ty_instor &tyins, int fv, Term *tm, obj_type &obj, rsl_type &rsl)
+void _update(ty_instor &tyins, int fv, Term *tm, obj_type &obj, rsl_type &rsl, vdict &vhis)
 {
-    std::unordered_map<Term *, Term *> minst;
-    std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> mvsub;
     for (auto &e : obj) {
-        e.first = vsubst(fv, tm, inst(tyins, e.first, minst), mvsub);
-        e.second = vsubst(fv, tm, inst(tyins, e.second, minst), mvsub);
+        e.first = mixsub(tyins, fv, tm, e.first, vhis);
+        e.second = mixsub(tyins, fv, tm, e.second, vhis);
     }
-    for (auto &e : rsl) e.first = vsubst(fv, tm, inst(tyins, e.first, minst), mvsub);
+    for (auto &e : rsl) e.first = mixsub(tyins, fv, tm, e.first, vhis);
 }
 
 Term *_find(Term *x, std::unordered_map<Term *, Term *> &pre)
@@ -155,7 +150,7 @@ bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
 
     for (auto &e : tyl2)
         args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
-    sub = inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], n - 1 - k), args));
+    sub = raw_inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], n - 1 - k), args));
     return true;
 }
 
@@ -208,9 +203,10 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         if (it->first->ty != it->second->ty) {
             ret_tyins.clear();
             if (!type_unify(it->first->ty, it->second->ty, ret_tyins)) return false;
+            idict ihis;
             insert_tyins(ret_tyins, tyins);
-            update_tmins(ret_tyins, tmins);
-            _update(ret_tyins, obj, rsl);
+            update_tmins(ret_tyins, tmins, ihis);
+            _update(ret_tyins, obj, rsl, ihis);
         }
 
         // Delete rule
@@ -265,39 +261,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     */
 
     /*
-     * Deal with rsl
-     */
-    for (auto prev = rsl.before_begin(), it = rsl.begin(); it != rsl.end(); ) {
-        remove_dummy_bvar(it->first);
-
-        int c = it->second;
-        decompose(it->first, bvs1, hs1, args1);
-        if (kn::is_fvar(hs1, static_cast<int>(bvs1.size())))
-            ++prev, ++it;
-        else if (hs1->idx - bvs1.size() == c)
-            return false;
-        else {
-            it = rsl.erase_after(prev);
-            for (auto &e : args1)
-                it = rsl.emplace_after(prev, mk_nlabs(bvs1, e), c);
-        }
-    }
-
-    /*
-     * x mc/mc ==> x := \u. y
-     */
-    for (auto &e : rsl) if (e.first->is_comb()) {
-        Term *x = e.first->rator(), *mc = e.first->rand();
-        if (x->is_leaf() && mc->is_leaf() && mc->idx == e.second) {
-            Term *sub = kn::mk_abs(x->ty->dom(), kn::mk_var(x->ty->cod(), x->idx + 1));
-            insert_tmins(x->idx, sub, tmins);
-            _update(x->idx, sub, obj, rsl);
-            return simplify(obj, rsl, tyins, tmins, dep);
-        }
-    }
-
-
-    /*
      * Initialize disjoint union set
      * Notice: the domain is pointer so there EXISTS randomness here,
      * use some extra effort to avoid this
@@ -319,14 +282,51 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
 
     /*
+     * Deal with rsl
+     */
+    for (auto prev = rsl.before_begin(), it = rsl.begin(); it != rsl.end(); ) {
+        remove_dummy_bvar(it->first);
+
+        int c = it->second;
+        decompose(it->first, bvs1, hs1, args1);
+        if (kn::is_fvar(hs1, static_cast<int>(bvs1.size())))
+            ++prev, ++it;
+        else if (hs1->idx - bvs1.size() == c)
+            return false;
+        else {
+            it = rsl.erase_after(prev);
+            for (auto &e : args1)
+                it = rsl.emplace_after(prev, mk_nlabs(bvs1, e), c);
+        }
+    }
+    rsl.sort();
+    rsl.unique();
+
+    /*
+     * x mc/mc ==> x := \u. y
+     */
+    for (auto &e : rsl) if (e.first->is_comb()) {
+        Term *x = e.first->rator(), *mc = e.first->rand();
+        if (x->is_leaf() && mc->is_leaf() && mc->idx == e.second) {
+            Term *sub = kn::mk_abs(x->ty->dom(), kn::mk_var(x->ty->cod(), x->idx + 1));
+            vdict vhis;
+            insert_tmins(x->idx, sub, tmins, vhis);
+            _update(x->idx, sub, obj, rsl, vhis);
+            return simplify(obj, rsl, tyins, tmins, dep);
+        }
+    }
+
+
+    /*
      * Bind rule
      */
 
     for (auto &e1 : tms) {
         if (e1->is_leaf() && kn::is_fvar(e1)) {
             for (auto &e2 : tms) if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2)) {
-                insert_tmins(e1->idx, e2, tmins);
-                _update(e1->idx, e2, obj, rsl);
+                vdict vhis;
+                insert_tmins(e1->idx, e2, tmins, vhis);
+                _update(e1->idx, e2, obj, rsl, vhis);
                 return simplify(obj, rsl, tyins, tmins, dep);
             }
         }
@@ -449,13 +449,25 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             if (idx2 >= 0 && idx2 < kn::HI_CONST_TERM && std::find(idxes.begin(), idxes.end(), idx2) == idxes.end()) {
                 Term *sub;
                 _imitate(hs1->ty, kn::mk_var(hs2->ty, idx2), sub);
-                insert_tmins(idx1, sub, tmins);
-                _update(idx1, sub, obj, rsl);
+                vdict vhis;
+                insert_tmins(idx1, sub, tmins, vhis);
+                _update(idx1, sub, obj, rsl, vhis);
                 return simplify(obj, rsl, tyins, tmins, dep + 1);
             }
         }
     }
 
+    /*
+     * remove duplication in obj
+     */
+    obj.clear();
+    for (auto &e1 : tms) if (pre[e1] == e1) {
+        Term *prev = nullptr;
+        for (auto &e2 : tms) if (pre[e2] == e1) {
+            if (prev != nullptr) obj.emplace_front(prev, e2);
+            prev = e2;
+        }
+    }
     return true;
 }
 
@@ -471,7 +483,9 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     std::vector<Term *> args1, args2;
 
     if (!simplify(obj, rsl, _tyins, _tmins)) return false;
-    update_instor(_tyins, _tmins, tyins, tmins);
+    update_tyins(_tyins, tyins);
+    vdict vhis;
+    update_tmins(_tyins, _tmins, tmins, vhis);
 
 
     std::pair<Term *, Term *> best;
@@ -502,8 +516,9 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
             _imitate(hs1->ty, kn::mk_var(hs2->ty, hs2->idx - static_cast<int>(bvs2.size())), sub);
             kn::save_maps();
             try {
-                update_tmins(idx, sub, tmins);
-                _update(idx, sub, obj, rsl);
+                vhis.clear();
+                update_tmins(idx, sub, tmins, vhis);
+                _update(idx, sub, obj, rsl, vhis);
                 if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
             } catch (kn::MemoryLimitExceeded &e) {}
             kn::load_maps();
@@ -518,8 +533,17 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
             if (!_project(hs1->ty, k, sub, _tyins)) continue;
             kn::save_maps();
             try {
-                !_tyins.empty() ? update_instor(_tyins, idx, sub, tyins, tmins) : update_tmins(idx, sub, tmins);
-                !_tyins.empty() ? _update(_tyins, idx, sub, obj, rsl) : _update(idx, sub, obj, rsl);
+                vhis.clear();
+                if (!_tyins.empty()) {
+                    update_tyins(_tyins, tyins);
+                    update_tmins(_tyins, idx, sub, tmins, vhis);
+                    _update(_tyins, idx, sub, obj, rsl, vhis);
+                }
+                else {
+                    update_tmins(idx, sub, tmins, vhis);
+                    _update(idx, sub, obj, rsl, vhis);
+
+                }
                 if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
             } catch (kn::MemoryLimitExceeded &e) {}
             kn::load_maps();
@@ -549,7 +573,8 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
         if (mon.find(apx) == mon.end()) mon[apx] = kn::term_name_pool.gen();
         Term *hs = kn::mk_var(apx, mon[apx] + static_cast<int>(tyl.size()));
         sub = mk_labs(tyl, hs);
-        update_tmins(tm->idx, sub, tmins);
+        vhis.clear();
+        update_tmins(tm->idx, sub, tmins, vhis);
     }
 
     res = std::make_pair(tyins, tmins);

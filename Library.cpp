@@ -23,132 +23,6 @@ Type *type_subst(const ty_instor &theta, Type *ty)
     }
 }
 
-Term *inst(const ty_instor &theta, Term *tm)
-{
-    if (tm->is_comb()) {
-        Term *tm1 = inst(theta, tm->rator()), *tm2 = inst(theta, tm->rand());
-        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
-    }
-    else if (tm->is_abs()) {
-        Type *ty_ = type_subst(theta, tm->ty->dom());
-        Term *tm_ = inst(theta, tm->bod());
-        return tm->ty->dom() == ty_ && tm->bod() == tm_ ? tm : kn::mk_abs(ty_, tm_);
-    }
-    else {
-        Type *ty = type_subst(theta, tm->ty);
-        return ty == tm->ty ? tm : kn::mk_var(ty, tm->idx);
-    }
-}
-
-Term *inst(const ty_instor &theta, Term *tm, std::unordered_map<Term *, Term *> &minst)
-{
-    auto it = minst.find(tm);
-    if (it != minst.end()) return it->second;
-
-    if (tm->is_comb()) {
-        Term *tm1 = inst(theta, tm->rator(), minst), *tm2 = inst(theta, tm->rand(), minst);
-        return minst[tm] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
-    }
-    else if (tm->is_abs()) {
-        Type *ty_ = type_subst(theta, tm->ty->dom());
-        Term *tm_ = inst(theta, tm->bod(), minst);
-        return minst[tm] = tm->ty->dom() == ty_ && tm->bod() == tm_ ? tm : kn::mk_abs(ty_, tm_);
-    }
-    else {
-        Type *ty = type_subst(theta, tm->ty);
-        return minst[tm] = ty == tm->ty ? tm : kn::mk_var(ty, tm->idx);
-    }
-}
-
-Term *vsubst(int idx, Term *sub, Term *tm, int scope)
-{
-    if (tm->is_comb()) {
-        Term *tm1 = vsubst(idx, sub, tm->rator(), scope);
-        Term *tm2 = vsubst(idx, sub, tm->rand(), scope);
-        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
-    }
-    else if (tm->is_abs()) {
-        Term *tmb = vsubst(idx, sub, tm->bod(), scope + 1);
-        return tmb == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmb);
-    }
-    else
-        return tm->idx == idx + scope ? kn::lift(sub, scope) : tm;
-}
-
-Term *vsubst(int idx, Term *sub, Term *tm,
-             std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> &mvsub, int scope)
-{
-    if (tm->is_leaf()) {
-        /*
-         * we have another hash guarantee in lift, so directly call it
-         * to avoid hash duplication
-         */
-        return tm->idx == idx + scope ? kn::lift(sub, scope) : tm;
-    }
-    else {
-        auto key = std::make_pair(tm, scope);
-        auto it = mvsub.find(key);
-        if (it != mvsub.end()) return it->second;
-        if (tm->is_comb()) {
-            Term *tm1 = vsubst(idx, sub, tm->rator(), mvsub, scope);
-            Term *tm2 = vsubst(idx, sub, tm->rand(), mvsub, scope);
-            return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
-        }
-        else {
-            Term *tmb = vsubst(idx, sub, tm->bod(), mvsub, scope + 1);
-            return mvsub[key] = tmb == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmb);
-        }
-    }
-}
-
-Term *vsubst(const tm_instor &tmins, Term *tm, int scope)
-{
-    if (tm->is_comb()) {
-        Term *tm1 = vsubst(tmins, tm->rator(), scope), *tm2 = vsubst(tmins, tm->rand(), scope);
-        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
-    }
-    else if (tm->is_abs()) {
-        Term *tmm = vsubst(tmins, tm->bod(), scope + 1);
-        return tmm == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmm);
-    }
-    else if (tm->idx >= scope) {
-        auto it = tmins.find(tm->idx - scope);
-        if (it != tmins.end())
-            return kn::lift(it->second, scope);
-        else
-            return tm;
-    }
-    else
-        return tm;
-}
-
-Term *vsubst(const tm_instor &tmins, Term *tm,
-             std::unordered_map<std::pair<Term *, int>, Term *, pair_hash> &mvsub, int scope)
-{
-    auto key = std::make_pair(tm, scope);
-    auto it = mvsub.find(key);
-    if (it != mvsub.end()) return it->second;
-
-    if (tm->is_comb()) {
-        Term *tm1 = vsubst(tmins, tm->rator(), mvsub, scope);
-        Term *tm2 = vsubst(tmins, tm->rand(), mvsub, scope);
-        return mvsub[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
-    }
-    else if (tm->is_abs()) {
-        Term *tmm = vsubst(tmins, tm->bod(), mvsub, scope + 1);
-        return mvsub[key] = tmm == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmm);
-    }
-    else if (tm->idx >= scope) {
-        auto it = tmins.find(tm->idx - scope);
-        if (it != tmins.end())
-            return mvsub[key] = kn::lift(it->second, scope);
-        else
-            return mvsub[key] = tm;
-    }
-    else
-        return tm;
-}
-
 void insert_tyins(int idx, Type *sub, ty_instor &tyins)
 {
     for (auto &e : tyins) e.second = type_subst(idx, sub, e.second);
@@ -161,12 +35,6 @@ void insert_tyins(const ty_instor &theta, ty_instor &tyins)
     tyins.insert(theta.begin(), theta.end());
 }
 
-void insert_tmins(int idx, Term *sub, tm_instor &tmins)
-{
-    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
-    tmins.emplace(idx, sub);
-}
-
 void update_tyins(int idx, Type *sub, ty_instor &tyins)
 {
     for (auto &e : tyins) e.second = type_subst(idx, sub, e.second);
@@ -177,36 +45,181 @@ void update_tyins(const ty_instor &theta, ty_instor &tyins)
     for (auto &e : tyins) e.second = type_subst(theta, e.second);
 }
 
-void update_tmins(int idx, Term *sub, tm_instor &tmins)
+
+
+Term *raw_inst(const ty_instor &theta, Term *tm)
 {
-    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
+    if (tm->is_comb()) {
+        Term *tm1 = raw_inst(theta, tm->rator()), *tm2 = raw_inst(theta, tm->rand());
+        return tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Type *ty_ = type_subst(theta, tm->ty->dom());
+        Term *tm_ = raw_inst(theta, tm->bod());
+        return tm->ty->dom() == ty_ && tm->bod() == tm_ ? tm : kn::mk_abs(ty_, tm_);
+    }
+    else {
+        Type *ty = type_subst(theta, tm->ty);
+        return ty == tm->ty ? tm : kn::mk_var(ty, tm->idx);
+    }
 }
 
-void update_tmins(const ty_instor &theta, tm_instor &tmins)
+Term *inst(const ty_instor &theta, Term *tm, idict &his)
 {
-    for (auto &e : tmins) e.second = inst(theta, e.second);
+    auto it = his.find(tm);
+    if (it != his.end()) return it->second;
+
+    if (tm->is_comb()) {
+        Term *tm1 = inst(theta, tm->rator(), his), *tm2 = inst(theta, tm->rand(), his);
+        return his[tm] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : kn::mk_comb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Type *ty_ = type_subst(theta, tm->ty->dom());
+        Term *tm_ = inst(theta, tm->bod(), his);
+        return his[tm] = tm->ty->dom() == ty_ && tm->bod() == tm_ ? tm : kn::mk_abs(ty_, tm_);
+    }
+    else {
+        Type *ty = type_subst(theta, tm->ty);
+        return his[tm] = ty == tm->ty ? tm : kn::mk_var(ty, tm->idx);
+    }
 }
 
-void update_tmins(const tm_instor &theta, tm_instor &tmins)
+void update_tmins(const ty_instor &theta, tm_instor &tmins, idict &his)
 {
-    for (auto &e : tmins) e.second = vsubst(theta, e.second);
+    for (auto &e : tmins) e.second = inst(theta, e.second, his);
 }
 
-void update_instor(const ty_instor &_tyins, const tm_instor &_tmins, ty_instor &tyins, tm_instor &tmins)
+
+
+Term *vsubst(int idx, Term *sub, Term *tm,
+             vdict &his, int scope)
 {
-    // (tyins, tmins) followed by (_tyins, _tmins)
-    update_tyins(_tyins, tyins);
-    for (auto &e : tmins) e.second = inst(_tyins, e.second);
-    update_tmins(_tmins, tmins);
+    if (tm->is_leaf()) {
+        /*
+         * we have another hash guarantee in lift, so directly call it
+         * to avoid hash duplication
+         */
+        return tm->idx == idx + scope ? kn::lift(sub, scope) : tm;
+    }
+    else {
+        auto key = std::make_pair(tm, scope);
+        auto it = his.find(key);
+        if (it != his.end()) return it->second;
+        if (tm->is_comb()) {
+            Term *tm1 = vsubst(idx, sub, tm->rator(), his, scope);
+            Term *tm2 = vsubst(idx, sub, tm->rand(), his, scope);
+            return his[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
+        }
+        else {
+            Term *tmb = vsubst(idx, sub, tm->bod(), his, scope + 1);
+            return his[key] = tmb == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmb);
+        }
+    }
 }
 
-void update_instor(const ty_instor &_tyins, int idx, Term *sub, ty_instor &tyins, tm_instor &tmins)
+Term *vsubst(const tm_instor &tmins, Term *tm,
+             vdict &his, int scope)
 {
-    // (tyins, tmins) followed by (_tyins, _(idx, sub))
-    update_tyins(_tyins, tyins);
-    for (auto &e : tmins) e.second = inst(_tyins, e.second);
-    update_tmins(idx, sub, tmins);
+    auto key = std::make_pair(tm, scope);
+    auto it = his.find(key);
+    if (it != his.end()) return it->second;
+
+    if (tm->is_comb()) {
+        Term *tm1 = vsubst(tmins, tm->rator(), his, scope);
+        Term *tm2 = vsubst(tmins, tm->rand(), his, scope);
+        return his[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Term *tmm = vsubst(tmins, tm->bod(), his, scope + 1);
+        return his[key] = tmm == tm->bod() ? tm : mk_nabs(tm->ty->dom(), tmm);
+    }
+    else if (tm->idx >= scope) {
+        auto it = tmins.find(tm->idx - scope);
+        if (it != tmins.end())
+            return his[key] = kn::lift(it->second, scope);
+        else
+            return his[key] = tm;
+    }
+    else
+        return tm;
 }
+
+void insert_tmins(int idx, Term *sub, tm_instor &tmins, vdict &his)
+{
+    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second, his);
+    tmins.emplace(idx, sub);
+}
+
+void update_tmins(int idx, Term *sub, tm_instor &tmins, vdict &his)
+{
+    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second, his);
+}
+
+
+void update_tmins(const tm_instor &theta, tm_instor &tmins, vdict &his)
+{
+    for (auto &e : tmins) e.second = vsubst(theta, e.second, his);
+}
+
+
+
+Term *mixsub(const ty_instor &tyins, int idx, Term *sub, Term *tm, vdict &his, int scope)
+{
+    auto key = std::make_pair(tm, scope);
+    auto it = his.find(key);
+    if (it != his.end()) return it->second;
+
+    if (tm->is_comb()) {
+        Term *tm1 = mixsub(tyins, idx, sub, tm->rator(), his, scope);
+        Term *tm2 = mixsub(tyins, idx, sub, tm->rand(), his, scope);
+        return his[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Term *tmm = mixsub(tyins, idx, sub, tm->bod(), his, scope + 1);
+        return his[key] = mk_nabs(type_subst(tyins, tm->ty->dom()), tmm);
+    }
+    else if (tm->idx == idx + scope)
+        return his[key] = kn::lift(sub, scope);
+    else
+        return his[key] = kn::mk_var(type_subst(tyins, tm->ty), tm->idx);
+}
+
+Term *mixsub(const ty_instor &tyins, const tm_instor &tmins, Term *tm, vdict &his, int scope)
+{
+    auto key = std::make_pair(tm, scope);
+    auto it = his.find(key);
+    if (it != his.end()) return it->second;
+
+    if (tm->is_comb()) {
+        Term *tm1 = mixsub(tyins, tmins, tm->rator(), his, scope);
+        Term *tm2 = mixsub(tyins, tmins, tm->rand(), his, scope);
+        return his[key] = tm1 == tm->rator() && tm2 == tm->rand() ? tm : mk_ncomb(tm1, tm2);
+    }
+    else if (tm->is_abs()) {
+        Term *tmm = mixsub(tyins, tmins, tm->bod(), his, scope + 1);
+        return his[key] = mk_nabs(type_subst(tyins, tm->ty->dom()), tmm);
+    }
+    else if (tm->idx >= scope) {
+        auto itt = tmins.find(tm->idx - scope);
+        if (itt != tmins.end())
+            return his[key] = kn::lift(itt->second, scope);
+        else
+            return his[key] = kn::mk_var(type_subst(tyins, tm->ty), tm->idx);
+    }
+    else
+        return his[key] = kn::mk_var(type_subst(tyins, tm->ty), tm->idx);
+}
+
+void update_tmins(const ty_instor &tyins, int idx, Term *sub, tm_instor &theta, vdict &his)
+{
+    for (auto &e : theta) e.second = mixsub(tyins, idx, sub, e.second, his);
+}
+
+void update_tmins(const ty_instor &tyins, const tm_instor &tmins, tm_instor &theta, vdict &his)
+{
+    for (auto &e : theta) e.second = mixsub(tyins, tmins, e.second, his);
+}
+
 
 bool tfree_in(int idx, Type *ty)
 {

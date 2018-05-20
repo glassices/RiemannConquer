@@ -54,13 +54,12 @@ void Node::delete_all()
     delete this;
 }
 
-void Node::update_all(ty_instor &tyins, tm_instor &tmins)
+void Node::update_all(const ty_instor &tyins, const tm_instor &tmins, vdict &vhis)
 {
-    if (p1) p1->update_all(tyins, tmins);
-    if (p2) p2->update_all(tyins, tmins);
+    if (p1) p1->update_all(tyins, tmins, vhis);
+    if (p2) p2->update_all(tyins, tmins, vhis);
     if (is_leaf() || (par && par->tag == Node::deduct))
-        tm = vsubst(tmins, inst(tyins, tm));
-    //tm = vsubst(tmins, inst(tyins, tm));
+        tm = mixsub(tyins, tmins, tm, vhis);
 }
 
 ProofGraph::ProofGraph()
@@ -104,7 +103,8 @@ bool ProofGraph::distill()
     ty_instor tyins;
     tm_instor tmins;
     if (simplify(obj, rsl, tyins, tmins)) {
-        root->update_all(tyins, tmins);
+        vdict vhis;
+        root->update_all(tyins, tmins, vhis);
         return true;
     }
     else
