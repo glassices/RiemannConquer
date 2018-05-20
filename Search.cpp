@@ -61,12 +61,6 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
                 }
 
                 next_state = state;
-                if (next_state.rtrans(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                    state = next_state;
-                    return true;
-                }
-
-                next_state = state;
                 if (next_state.rdeduct(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
                     state = next_state;
                     return true;
