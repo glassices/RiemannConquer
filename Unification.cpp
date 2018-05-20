@@ -184,7 +184,7 @@ void _delete_term_from_obj(obj_type &obj, std::vector<Term *> &tms, std::unorder
  */
 bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, int dep)
 {
-    if (dep >= 10) return false;
+    if (dep >= kn::SEARCH_DEPTH_LIMIT) return false;
 
     ty_instor ret_tyins;
     std::vector<Type *> bvs1, bvs2;
@@ -461,7 +461,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
 bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, int dep, std::pair<ty_instor, tm_instor> &res)
 {
-    if (dep >= 20) return false;
+    if (dep >= kn::SEARCH_DEPTH_LIMIT) return false;
 
     ty_instor _tyins;
     tm_instor _tmins;
@@ -484,6 +484,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
     /*
      * naive choose a flex-rigid pair, this might be an interesting ML prediction task
+     * TODO: optimize update_tyins and update_tmins
      */
 
     if (min_order < 1000000) {

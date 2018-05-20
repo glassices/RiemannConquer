@@ -31,6 +31,7 @@ namespace kn
     extern const int HI_CONST_TERM;
 
     extern const int MEMORY_LIMIT;
+    extern const int SEARCH_DEPTH_LIMIT;
 
     class MemoryLimitExceeded : public std::exception {};
 
