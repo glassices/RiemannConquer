@@ -92,12 +92,20 @@ bool tfree_in(int idx, Type *ty)
 
 bool vfree_in(int idx, Term *tm)
 {
-    if (tm->is_comb())
-        return vfree_in(idx, tm->rator()) || vfree_in(idx, tm->rand());
-    else if (tm->is_abs())
-        return vfree_in(idx + 1, tm->bod());
-    else
-        return tm->idx == idx;
+    if (tm->is_leaf()) return tm->idx == idx;
+    else {
+        std::pair<int, Term *> key(idx, tm);
+        auto it = kn::vfree_in_map.hmap.find(key);
+        if (it != kn::vfree_in_map.hmap.end()) return it->second;
+
+        bool res;
+        if (tm->is_comb())
+            res = vfree_in(idx, tm->rator()) || vfree_in(idx, tm->rand());
+        else
+            res = vfree_in(idx + 1, tm->bod());
+        kn::vfree_in_map.insert(key, res);
+        return res;
+    }
 }
 
 Term *inst(const ty_instor &theta, Term *tm)

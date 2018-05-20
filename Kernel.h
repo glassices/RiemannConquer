@@ -162,21 +162,35 @@ namespace kn
 
     extern Type *const bool_ty;
 
-    struct tuple_hash
+    struct hvfree_in
     {
-        template <class T1, class T2, class T3>
-        std::size_t operator()(const std::tuple<T1, T2, T3> &p) const
+        std::size_t operator()(const std::pair<int, Term *> &p) const
         {
-            auto h1 = std::hash<T1>{}(std::get<0>(p));
-            auto h2 = std::hash<T2>{}(std::get<1>(p));
-            auto h3 = std::hash<T3>{}(std::get<2>(p));
-            return (h1 << 2) ^ (h2 << 1) ^ h3;
+            return std::hash<Term *>{}(p.second) ^ (p.first << 10);
         }
     };
 
-    extern PersistentMap<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
+    struct hlift
+    {
+        std::size_t operator()(const std::tuple<Term *, int, int> &p) const
+        {
+            return std::hash<Term *>{}(std::get<0>(p)) ^ (std::get<1>(p) << 10) ^ (std::get<2>(p) << 5);
+        }
+    };
 
-    extern PersistentMap<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
+    struct hbeta
+    {
+        std::size_t operator()(const std::tuple<Term *, Term *, int> &p) const
+        {
+            auto h1 = std::hash<Term *>{}(std::get<0>(p));
+            auto h2 = std::hash<Term *>{}(std::get<1>(p));
+            return h1 ^ h2 ^ (std::get<2>(p) << 10);
+        }
+    };
+
+    extern PersistentMap<std::tuple<Term *, Term *, int>, Term *, hbeta> beta_map;
+    extern PersistentMap<std::tuple<Term *, int, int>, Term *, hlift> lift_map;
+    extern PersistentMap<std::pair<int, Term *>, bool, hvfree_in> vfree_in_map;
 
     void save_maps();
     void load_maps();

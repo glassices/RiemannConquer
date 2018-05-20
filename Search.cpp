@@ -19,14 +19,14 @@ Node *_cores(Node *node, Node *root)
     return root;
 }
 
-Node *_get_todo(Node *k)
+Node *get_next_leaf(Node *k)
 {
     if (k->is_binary()) {
-        Node *res = _get_todo(k->p1);
-        return res ? res : _get_todo(k->p2);
+        Node *res = get_next_leaf(k->p1);
+        return res ? res : get_next_leaf(k->p2);
     }
     else if (k->is_unary())
-        return _get_todo(k->p1);
+        return get_next_leaf(k->p1);
     return k->tag == Node::todo ? k : nullptr;
 }
 
@@ -45,7 +45,7 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
     kn::save_maps();
     //cout << state.root << rem_node << endl;
     try {
-        Node *todo = _get_todo(state.root);
+        Node *todo = get_next_leaf(state.root);
         if (todo) {
             ProofGraph next_state;
             if (rem_node > 0) {

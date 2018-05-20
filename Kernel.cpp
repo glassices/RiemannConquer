@@ -13,7 +13,7 @@ namespace kn {
     const int MD_CONST_TERM = 256;
     const int HI_CONST_TERM = 512;
 
-    const int MEMORY_LIMIT = 1000;
+    const int MEMORY_LIMIT = 5000;
 
     NamePool::NamePool(int _ptr) : ptr(_ptr) {}
 
@@ -169,8 +169,9 @@ namespace kn {
 
     Type *const bool_ty = mk_atom(0);
 
-    PersistentMap<std::tuple<Term *, Term *, int>, Term *, tuple_hash> beta_map;
-    PersistentMap<std::tuple<Term *, int, int>, Term *, tuple_hash> lift_map;
+    PersistentMap<std::tuple<Term *, Term *, int>, Term *, hbeta> beta_map;
+    PersistentMap<std::tuple<Term *, int, int>, Term *, hlift> lift_map;
+    PersistentMap<std::pair<int, Term *>, bool, hvfree_in> vfree_in_map;
 
     void save_maps()
     {
@@ -180,6 +181,7 @@ namespace kn {
         term_pointer_pool.add_ckpt();
         beta_map.add_ckpt();
         lift_map.add_ckpt();
+        vfree_in_map.add_ckpt();
     }
 
     void load_maps()
@@ -190,6 +192,7 @@ namespace kn {
         term_pointer_pool.rec_ckpt();
         beta_map.rec_ckpt();
         lift_map.rec_ckpt();
+        vfree_in_map.rec_ckpt();
     }
 }
 
