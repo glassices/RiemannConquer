@@ -117,7 +117,45 @@ void searcher_test()
     search(p_and_q_imp_p, 5);
     puts("--------------------------------");
     */
+}
 
+void tinker()
+{
+    Type *booo = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
+    Term *p = mk_var(bool_ty, kn::MD_CONST_TERM + 0);
+    Term *q = mk_var(bool_ty, kn::MD_CONST_TERM + 1);
+
+
+    Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
+
+    Term *p_and_p = expand(mk_lcomb({mk_var(booo, 3), p, p}));
+    Term *monster = expand(mk_lcomb({mk_var(booo, 4), p_and_p, p_and_p}));
+
+    auto state = ProofGraph(monster);
+    //auto state = ProofGraph(p_imp_p);
+    assert(state.rdeduct(get_next_leaf(state.root)));
+    assert(state.rmk_comb(get_next_leaf(state.root)));
+    assert(state.rrefl(get_next_leaf(state.root)));
+    assert(state.rdeduct(get_next_leaf(state.root)));
+    assert(state.rassume(get_next_leaf(state.root), 1));
+    assert(state.rrefl(get_next_leaf(state.root)));
+    assert(state.req_mp(get_next_leaf(state.root)));
+    assert(state.req_mp(get_next_leaf(state.root)));
+    assert(state.rmk_comb(get_next_leaf(state.root)));
+    assert(state.rassume(get_next_leaf(state.root), 0));
+    assert(state.rrefl(get_next_leaf(state.root)));
+    assert(state.rrefl(get_next_leaf(state.root)));
+    assert(state.rrefl(get_next_leaf(state.root)));
+    cout << kn::beta_map.hmap.size() << endl;
+
+    std::pair<ty_instor, tm_instor> res;
+    if (term_unify(state.obj, state.rsl, res)) {
+        state.root->update_all(res.first, res.second);
+        puts("ok");
+        cout << kn::beta_map.hmap.size() << endl;
+    }
+    else
+        puts("no");
 }
 
 int main() {
@@ -125,7 +163,9 @@ int main() {
 
     //logic_test();
 
-    searcher_test();
+    //searcher_test();
+
+    tinker();
 
     std::cout << "Hello, World!" << std::endl;
     return 0;

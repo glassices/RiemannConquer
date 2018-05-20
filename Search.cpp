@@ -43,7 +43,6 @@ int _count_deduct(Node *k)
 bool _naive_dfs(ProofGraph &state, int rem_node)
 {
     kn::save_maps();
-    //cout << state.root << rem_node << endl;
     try {
         Node *todo = get_next_leaf(state.root);
         if (todo) {

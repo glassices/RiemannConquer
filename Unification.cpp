@@ -143,14 +143,16 @@ bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
     std::vector<Type *> tyl1, tyl2;
     std::vector<Term *> bvars, args;
 
-    tyins.clear();
     ty->strip_fun(tyl1, apx1);
     tyl1[k]->strip_fun(tyl2, apx2);
     auto n = static_cast<int>(tyl1.size());
 
     for (int i = 0; i < n; i++)
         bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
+
+    tyins.clear();
     if (!type_unify(apx1, apx2, tyins)) return false;
+
     for (auto &e : tyl2)
         args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
     sub = inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], n - 1 - k), args));
@@ -206,9 +208,9 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         if (it->first->ty != it->second->ty) {
             ret_tyins.clear();
             if (!type_unify(it->first->ty, it->second->ty, ret_tyins)) return false;
+            insert_tyins(ret_tyins, tyins);
             update_tmins(ret_tyins, tmins);
             _update(ret_tyins, obj, rsl);
-            insert_tyins(ret_tyins, tyins);
         }
 
         // Delete rule
@@ -256,7 +258,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
-
     /*
     cout << "after decomposition" << endl;
     for (auto &e : obj) cout << e << endl;
@@ -281,7 +282,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 it = rsl.emplace_after(prev, mk_nlabs(bvs1, e), c);
         }
     }
-
 
     /*
      * x mc/mc ==> x := \u. y
@@ -456,13 +456,12 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
-
     return true;
 }
 
 bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, int dep, std::pair<ty_instor, tm_instor> &res)
 {
-    if (dep >= 10) return false;
+    if (dep >= 20) return false;
 
     ty_instor _tyins;
     tm_instor _tmins;
@@ -509,6 +508,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
             kn::load_maps();
             obj = obj_save;
             rsl = rsl_save;
+            tyins = tyins_save;
             tmins = tmins_save;
         }
 
@@ -517,7 +517,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
             if (!_project(hs1->ty, k, sub, _tyins)) continue;
             kn::save_maps();
             try {
-                update_instor(_tyins, idx, sub, tyins, tmins);
+                !_tyins.empty() ? update_instor(_tyins, idx, sub, tyins, tmins) : update_tmins(idx, sub, tmins);
                 !_tyins.empty() ? _update(_tyins, idx, sub, obj, rsl) : _update(idx, sub, obj, rsl);
                 if (_term_unify(obj, rsl, tyins, tmins, dep + 1, res)) return true;
             } catch (kn::MemoryLimitExceeded &e) {}

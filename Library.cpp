@@ -23,91 +23,6 @@ Type *type_subst(const ty_instor &theta, Type *ty)
     }
 }
 
-void insert_tyins(int idx, Type *sub, ty_instor &tyins)
-{
-    for (auto &e : tyins) e.second = type_subst(idx, sub, e.second);
-    tyins.insert(std::make_pair(idx, sub));
-}
-
-void insert_tyins(const ty_instor &theta, ty_instor &tyins)
-{
-    for (auto &e : tyins) e.second = type_subst(theta, e.second);
-    tyins.insert(theta.begin(), theta.end());
-}
-
-void insert_tmins(int idx, Term *sub, tm_instor &tmins)
-{
-    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
-    tmins.emplace(idx, sub);
-}
-
-void update_tyins(int idx, Type *sub, ty_instor &tyins)
-{
-    for (auto &e : tyins) e.second = type_subst(idx, sub, e.second);
-}
-
-void update_tyins(const ty_instor &theta, ty_instor &tyins)
-{
-    for (auto &e : tyins) e.second = type_subst(theta, e.second);
-}
-
-void update_tmins(int idx, Term *sub, tm_instor &tmins)
-{
-    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
-}
-
-void update_tmins(const ty_instor &theta, tm_instor &tmins)
-{
-    for (auto &e : tmins) e.second = inst(theta, e.second);
-}
-
-void update_tmins(const tm_instor &theta, tm_instor &tmins)
-{
-    for (auto &e : tmins) e.second = vsubst(theta, e.second);
-}
-
-void update_instor(const ty_instor &_tyins, const tm_instor &_tmins, ty_instor &tyins, tm_instor &tmins)
-{
-    // (tyins, tmins) followed by (_tyins, _tmins)
-    update_tyins(_tyins, tyins);
-    for (auto &e : tmins) e.second = inst(_tyins, e.second);
-    update_tmins(_tmins, tmins);
-}
-
-void update_instor(const ty_instor &_tyins, int idx, Term *sub, ty_instor &tyins, tm_instor &tmins)
-{
-    // (tyins, tmins) followed by (_tyins, _(idx, sub))
-    update_tyins(_tyins, tyins);
-    for (auto &e : tmins) e.second = inst(_tyins, e.second);
-    update_tmins(idx, sub, tmins);
-}
-
-bool tfree_in(int idx, Type *ty)
-{
-    if (ty->is_fun())
-        return tfree_in(idx, ty->dom()) || tfree_in(idx, ty->cod());
-    else
-        return idx == ty->idx;
-}
-
-bool vfree_in(int idx, Term *tm)
-{
-    if (tm->is_leaf()) return tm->idx == idx;
-    else {
-        std::pair<int, Term *> key(idx, tm);
-        auto it = kn::vfree_in_map.hmap.find(key);
-        if (it != kn::vfree_in_map.hmap.end()) return it->second;
-
-        bool res;
-        if (tm->is_comb())
-            res = vfree_in(idx, tm->rator()) || vfree_in(idx, tm->rand());
-        else
-            res = vfree_in(idx + 1, tm->bod());
-        kn::vfree_in_map.insert(key, res);
-        return res;
-    }
-}
-
 Term *inst(const ty_instor &theta, Term *tm)
 {
     if (tm->is_comb()) {
@@ -233,6 +148,92 @@ Term *vsubst(const tm_instor &tmins, Term *tm,
     else
         return tm;
 }
+
+void insert_tyins(int idx, Type *sub, ty_instor &tyins)
+{
+    for (auto &e : tyins) e.second = type_subst(idx, sub, e.second);
+    tyins.insert(std::make_pair(idx, sub));
+}
+
+void insert_tyins(const ty_instor &theta, ty_instor &tyins)
+{
+    for (auto &e : tyins) e.second = type_subst(theta, e.second);
+    tyins.insert(theta.begin(), theta.end());
+}
+
+void insert_tmins(int idx, Term *sub, tm_instor &tmins)
+{
+    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
+    tmins.emplace(idx, sub);
+}
+
+void update_tyins(int idx, Type *sub, ty_instor &tyins)
+{
+    for (auto &e : tyins) e.second = type_subst(idx, sub, e.second);
+}
+
+void update_tyins(const ty_instor &theta, ty_instor &tyins)
+{
+    for (auto &e : tyins) e.second = type_subst(theta, e.second);
+}
+
+void update_tmins(int idx, Term *sub, tm_instor &tmins)
+{
+    for (auto &e : tmins) e.second = vsubst(idx, sub, e.second);
+}
+
+void update_tmins(const ty_instor &theta, tm_instor &tmins)
+{
+    for (auto &e : tmins) e.second = inst(theta, e.second);
+}
+
+void update_tmins(const tm_instor &theta, tm_instor &tmins)
+{
+    for (auto &e : tmins) e.second = vsubst(theta, e.second);
+}
+
+void update_instor(const ty_instor &_tyins, const tm_instor &_tmins, ty_instor &tyins, tm_instor &tmins)
+{
+    // (tyins, tmins) followed by (_tyins, _tmins)
+    update_tyins(_tyins, tyins);
+    for (auto &e : tmins) e.second = inst(_tyins, e.second);
+    update_tmins(_tmins, tmins);
+}
+
+void update_instor(const ty_instor &_tyins, int idx, Term *sub, ty_instor &tyins, tm_instor &tmins)
+{
+    // (tyins, tmins) followed by (_tyins, _(idx, sub))
+    update_tyins(_tyins, tyins);
+    for (auto &e : tmins) e.second = inst(_tyins, e.second);
+    update_tmins(idx, sub, tmins);
+}
+
+bool tfree_in(int idx, Type *ty)
+{
+    if (ty->is_fun())
+        return tfree_in(idx, ty->dom()) || tfree_in(idx, ty->cod());
+    else
+        return idx == ty->idx;
+}
+
+bool vfree_in(int idx, Term *tm)
+{
+    if (tm->is_leaf()) return tm->idx == idx;
+    else {
+        std::pair<int, Term *> key(idx, tm);
+        auto it = kn::vfree_in_map.hmap.find(key);
+        if (it != kn::vfree_in_map.hmap.end()) return it->second;
+
+        bool res;
+        if (tm->is_comb())
+            res = vfree_in(idx, tm->rator()) || vfree_in(idx, tm->rand());
+        else
+            res = vfree_in(idx + 1, tm->bod());
+        kn::vfree_in_map.insert(key, res);
+        return res;
+    }
+}
+
 
 void strip_comb(Term *tm, Term *&hs, std::vector<Term *> &args)
 {

@@ -13,7 +13,7 @@ namespace kn {
     const int MD_CONST_TERM = 256;
     const int HI_CONST_TERM = 512;
 
-    const int MEMORY_LIMIT = 5000;
+    const int MEMORY_LIMIT = 1000;
 
     NamePool::NamePool(int _ptr) : ptr(_ptr) {}
 
