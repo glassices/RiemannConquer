@@ -47,7 +47,6 @@ void update_tmins(const ty_instor &, int, Term *, tm_instor &, vdict &);
 void update_tmins(const ty_instor &, const tm_instor &, tm_instor &, vdict &);
 
 bool tfree_in(int, Type *);
-
 bool vfree_in(int, Term *);
 
 

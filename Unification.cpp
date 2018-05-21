@@ -324,10 +324,14 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
     for (auto &e1 : tms) {
         if (e1->is_leaf() && kn::is_fvar(e1)) {
-            for (auto &e2 : tms) if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2)) {
+            Term *tm = nullptr;
+            for (auto &e2 : tms)
+                if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2) && (!tm || e2->size < tm->size))
+                    tm = e2;
+            if (tm) {
                 vdict vhis;
-                insert_tmins(e1->idx, e2, tmins, vhis);
-                _update(e1->idx, e2, obj, rsl, vhis);
+                insert_tmins(e1->idx, tm, tmins, vhis);
+                _update(e1->idx, tm, obj, rsl, vhis);
                 return simplify(obj, rsl, tyins, tmins, dep);
             }
         }
@@ -584,7 +588,6 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
 
 bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res)
 {
-    //cout << "start " << kn::nform_map.hmap.size() << ' ' << kn::beta_map.hmap.size() << ' ' << kn::lift_map.hmap.size() << ' ' << kn::term_pointer_pool.hmap.size() << endl;
 
     static int tot = 0;
     tot++;

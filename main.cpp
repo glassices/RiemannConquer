@@ -99,14 +99,14 @@ void searcher_test()
     puts("--------------------------------");
     */
 
+    /*
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
     search(p_imp_p, 5);
+    */
 
-    /*
     Term *p_and_p = expand(mk_lcomb({mk_var(booo, 3), p, p}));
     Term *monster = expand(mk_lcomb({mk_var(booo, 4), p_and_p, p_and_p}));
-    search(monster, 6);
-    */
+    search(monster, 5);
 
     /*
      * p /\ q ==> p
