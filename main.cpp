@@ -99,14 +99,16 @@ void searcher_test()
     puts("--------------------------------");
     */
 
-    /*
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
-    search(p_imp_p, 5);
-    */
+    Term *abs_p_imp_p = mk_eq(abstraction(p->idx, bool_ty, p_imp_p->rator()->rand()),
+                              abstraction(p->idx, bool_ty, p_imp_p->rand()));
+    search(abs_p_imp_p, 6);
 
+    /*
     Term *p_and_p = expand(mk_lcomb({mk_var(booo, 3), p, p}));
     Term *monster = expand(mk_lcomb({mk_var(booo, 4), p_and_p, p_and_p}));
     search(monster, 5);
+    */
 
     /*
      * p /\ q ==> p

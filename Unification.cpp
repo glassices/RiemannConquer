@@ -317,7 +317,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
     }
 
-
     /*
      * Bind rule
      */
