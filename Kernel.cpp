@@ -13,8 +13,8 @@ namespace kn {
     const int MD_CONST_TERM = 256;
     const int HI_CONST_TERM = 512;
 
-    const int MEMORY_LIMIT = 1000;
-    const int SEARCH_DEPTH_LIMIT = 20;
+    const int MEMORY_LIMIT = 10000;
+    const int SEARCH_DEPTH_LIMIT = 14;
 
 
     NamePool::NamePool(int _ptr) : ptr(_ptr) {}
@@ -93,17 +93,23 @@ namespace kn {
     {
         assert(tm1->ty->dom() == tm2->ty);
 
-        return term_pointer_pool.insert(Term(0, tm1->ty->cod(), tm1, tm2, 0, tm1->size + tm2->size));
+        return term_pointer_pool.insert(Term(0, tm1->ty->cod(), tm1, tm2,
+                                             0, tm1->size + tm2->size,
+                                             std::max(tm1->synapse, tm2->synapse)));
     }
 
     Term *mk_abs(Type *ty, Term *tm)
     {
-        return term_pointer_pool.insert(Term(1, mk_fun(ty, tm->ty), tm, nullptr, 0, tm->size + 1));
+        return term_pointer_pool.insert(Term(1, mk_fun(ty, tm->ty), tm, nullptr,
+                                             0, tm->size + 1,
+                                             std::max(tm->synapse - 1, 0)));
     }
 
     Term *mk_var(Type *ty, int idx)
     {
-        return term_pointer_pool.insert(Term(2, ty, nullptr, nullptr, idx, 1));
+        return term_pointer_pool.insert(Term(2, ty, nullptr, nullptr,
+                                             idx, 1,
+                                             idx >= 0 ? 0 : -idx));
     }
 
     Term *new_term(Type *ty)

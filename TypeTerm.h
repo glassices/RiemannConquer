@@ -35,13 +35,21 @@ struct Type
 
 struct Term
 {
+    /*
+     * Primitive information
+     */
     short tag; // 0:comb, 1: abs, 2: leaf
     Type *ty;
     Term *p1, *p2;
     int idx;
-    unsigned int size;
 
-    Term(short, Type *, Term *, Term *, int, unsigned int);
+    /*
+     * Deduced information
+     */
+    unsigned int size;
+    int synapse; // some bound bars might extend the term, this value indicate the maximum "synapse" these bvars have stretched
+
+    Term(short, Type *, Term *, Term *, int, unsigned int, int);
 
     bool is_comb() const;
     bool is_abs() const;

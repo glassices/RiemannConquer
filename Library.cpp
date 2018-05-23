@@ -542,6 +542,6 @@ std::ostream &operator<<(std::ostream &os, const Term &tm)
 
 std::ostream &operator<<(std::ostream &os, const Term *tm)
 {
-    os << *tm;
+    tm ? os << *tm : os << "``";
     return os;
 }

@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
-project(Bpril)
+project(RiemannConquer)
 
 set(CMAKE_CXX_STANDARD 11)
 
 include_directories(.)
 
-add_executable(Bpril
+add_executable(RiemannConquer
         Kernel.cpp
         Kernel.h
         Library.cpp

@@ -80,8 +80,8 @@ size_t Type::hash::operator()(const Type &t) const
 
 
 
-Term::Term(short _tag, Type *_ty, Term *_p1, Term *_p2, int _idx, unsigned int _size)
-        : tag(_tag), ty(_ty), p1(_p1), p2(_p2), idx(_idx), size(_size)
+Term::Term(short _tag, Type *_ty, Term *_p1, Term *_p2, int _idx, unsigned int _size, int _synapse)
+        : tag(_tag), ty(_ty), p1(_p1), p2(_p2), idx(_idx), size(_size), synapse(_synapse)
 {}
 
 bool Term::is_comb() const

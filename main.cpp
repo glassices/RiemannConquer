@@ -103,7 +103,7 @@ void searcher_test()
     */
 
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
-    search(p_imp_p, 5);
+    search(p_imp_p, 6);
 
     /*
     Term *abs_p_imp_p = mk_eq(abstraction(p->idx, bool_ty, p_imp_p->rator()->rand()),

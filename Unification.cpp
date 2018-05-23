@@ -6,6 +6,7 @@
 #include <iostream>
 #include <utility>
 #include <algorithm>
+#include <ctime>
 
 using namespace std;
 
@@ -156,6 +157,26 @@ bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
     return true;
 }
 
+void _eliminate(Term *fv, const std::vector<int> &idxes, Term *&sub)
+{
+    Type *apx;
+    std::vector<Type *> tyl, _tyl;
+    fv->ty->strip_fun(tyl, apx);
+
+    std::vector<Term *> args;
+    auto n = static_cast<int>(tyl.size());
+    auto it = idxes.begin();
+    for (int i = 0; i < n; i++) {
+        if (it != idxes.end() && *it == i) ++it;
+        else {
+            _tyl.push_back(tyl[i]);
+            args.push_back(kn::mk_var(tyl[i], i - n));
+        }
+    }
+
+    sub = mk_nlabs(tyl, mk_lcomb(kn::mk_var(kn::mk_lfun(_tyl, apx), fv->idx), args));
+}
+
 void _delete_term_from_obj(obj_type &obj, std::vector<Term *> &tms, std::unordered_map<Term *, Term *> &pre, Term *tm)
 {
     obj.clear();
@@ -168,14 +189,40 @@ void _delete_term_from_obj(obj_type &obj, std::vector<Term *> &tms, std::unorder
     }
 }
 
-bool _close_check(Term *tm, int scope = 0)
+void _traverse(Term *tm, std::unordered_map<Term *, std::vector<Term *>> &record,
+                         std::unordered_set<Term *> &visited)
 {
-    if (tm->is_comb())
-        return _close_check(tm->rator(), scope) && _close_check(tm->rand(), scope);
-    else if (tm->is_abs())
-        return _close_check(tm->bod(), scope + 1);
-    else
-        return tm->idx >= 0 || tm->idx + scope >= 0;
+    if (visited.find(tm) != visited.end()) return;
+    visited.insert(tm);
+    if (tm->is_abs()) {
+        _traverse(tm->bod(), record, visited);
+        return;
+    }
+
+    Term *hs;
+    std::vector<Term *> args;
+    strip_comb(tm, hs, args);
+
+    if (hs->idx >= kn::HI_CONST_TERM) {
+        if (record.find(hs) == record.end()) {
+            std::vector<Term *> &vec = record[hs];
+
+            for (auto &arg : args) {
+                if (arg->synapse == 0)
+                    vec.push_back(arg);
+                else
+                    vec.push_back(nullptr);
+            }
+        } else {
+            std::vector<Term *> &vec = record[hs];
+            vec.resize(std::min(vec.size(), args.size()));
+            for (int i = 0; i < vec.size(); i++)
+                if (vec[i] != args[i])
+                    vec[i] = nullptr;
+        }
+    }
+
+    for (auto &e : args) _traverse(e, record, visited);
 }
 
 /*
@@ -431,6 +478,35 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
 
     /*
+     * If the ith argument of a free variables x is always the same bvar-free (tm->synapse == 0),
+     * the x can eliminate its ith argument by letting x = \u1 ... un. x u1 ... u(i-1) u(i+1) ... un
+     */
+    std::unordered_map<Term *, std::vector<Term *>> record;
+    std::unordered_set<Term *> visited;
+    for (auto &e : obj) {
+        _traverse(e.first, record, visited);
+        _traverse(e.second, record, visited);
+    }
+    for (auto &e : rsl) _traverse(e.first, record, visited);
+
+    std::vector<int> idxes;
+    for (auto &e : record) {
+        idxes.clear();
+        for (int i = 0; i < e.second.size(); i++)
+            if (e.second[i])
+                idxes.push_back(i);
+        if (!idxes.empty()) {
+            Term *sub;
+            _eliminate(e.first, idxes, sub);
+            vdict vhis;
+            insert_tmins(e.first->idx, sub, tmins, vhis);
+            _update(e.first->idx, sub, obj, rsl, vhis);
+            return simplify(obj, rsl, tyins, tmins, dep);
+        }
+    }
+
+
+    /*
      * Projection is impossible
      * todo: be careful this method might incur infinite recursion
      * look for a candidate, head_var of tm1 is free and every head var of
@@ -470,6 +546,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             }
         }
     }
+
 
     /*
      * remove duplication in obj
@@ -616,7 +693,15 @@ bool term_unify(obj_type obj, rsl_type rsl, std::pair<ty_instor, tm_instor> &res
     for (auto &e : ty_set) tyins[e] = kn::mk_atom(e);
     for (auto &e : tm_set) tmins[e->idx] = e;
 
-    return _term_unify(_obj, _rsl, tyins, tmins, 0, res);
+    clock_t tt = clock();
+    bool ret = _term_unify(_obj, _rsl, tyins, tmins, 0, res);
+    /*
+    if (clock() - tt > 1000000) {
+        cout << tot << '\t' << "Current task is " << endl << obj << endl << rsl << endl;
+        cout << (clock() - tt) * 0.000001 << endl;
+    }
+    */
+    return ret;
 }
 
 
