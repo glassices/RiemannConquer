@@ -236,7 +236,7 @@ void _traverse(Term *tm, std::unordered_map<Term *, std::vector<Term *>> &record
  * case, so we should guarantee insert_tmins will check the existence
  * of key x
  */
-bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, int dep)
+bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, bool is_unify, int dep)
 {
     if (dep >= kn::SEARCH_DEPTH_LIMIT) return false;
 
@@ -371,7 +371,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             vdict vhis;
             insert_tmins(x->idx, sub, tmins, vhis);
             _update(x->idx, sub, obj, rsl, vhis);
-            return simplify(obj, rsl, tyins, tmins, dep);
+            return simplify(obj, rsl, tyins, tmins, is_unify, dep);
         }
     }
 
@@ -389,7 +389,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 vdict vhis;
                 insert_tmins(e1->idx, tm, tmins, vhis);
                 _update(e1->idx, tm, obj, rsl, vhis);
-                return simplify(obj, rsl, tyins, tmins, dep);
+                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
             }
         }
     }
@@ -412,7 +412,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 if (tm1->size < tm2->size) std::swap(tm1, tm2);
                 _delete_term_from_obj(obj, tms, pre, tm1);
                 obj.emplace_front(tm1, tm2);
-                return simplify(obj, rsl, tyins, tmins, dep);
+                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
             }
     }
 
@@ -456,7 +456,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                             if (ok) {
                                 _delete_term_from_obj(obj, tms, pre, *it1);
                                 obj.emplace_front(x, y);
-                                return simplify(obj, rsl, tyins, tmins, dep);
+                                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
                             }
                         }
                     }
@@ -480,28 +480,32 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     /*
      * If the ith argument of a free variables x is always the same bvar-free (tm->synapse == 0),
      * the x can eliminate its ith argument by letting x = \u1 ... un. x u1 ... u(i-1) u(i+1) ... un
+     * TODO: We can't do this for search procedure since there are other terms in someplace of trees. Extend this to accept searching.
      */
-    std::unordered_map<Term *, std::vector<Term *>> record;
-    std::unordered_set<Term *> visited;
-    for (auto &e : obj) {
-        _traverse(e.first, record, visited);
-        _traverse(e.second, record, visited);
-    }
-    for (auto &e : rsl) _traverse(e.first, record, visited);
+    if (is_unify) {
+        std::unordered_map<Term *, std::vector<Term *>> record;
+        std::unordered_set<Term *> visited;
+        for (auto &e : obj) {
+            _traverse(e.first, record, visited);
+            _traverse(e.second, record, visited);
+        }
+        for (auto &e : rsl) _traverse(e.first, record, visited);
 
-    std::vector<int> idxes;
-    for (auto &e : record) {
-        idxes.clear();
-        for (int i = 0; i < e.second.size(); i++)
-            if (e.second[i])
-                idxes.push_back(i);
-        if (!idxes.empty()) {
-            Term *sub;
-            _eliminate(e.first, idxes, sub);
-            vdict vhis;
-            insert_tmins(e.first->idx, sub, tmins, vhis);
-            _update(e.first->idx, sub, obj, rsl, vhis);
-            return simplify(obj, rsl, tyins, tmins, dep);
+        std::vector<int> idxes;
+        for (auto &e : record) {
+            idxes.clear();
+            for (int i = 0; i < e.second.size(); i++)
+                if (e.second[i])
+                    idxes.push_back(i);
+            if (!idxes.empty()) {
+                Term *sub;
+                _eliminate(e.first, idxes, sub);
+                cout << e << ' ' << sub << endl << obj << ' ' << rsl << endl;
+                vdict vhis;
+                insert_tmins(e.first->idx, sub, tmins, vhis);
+                _update(e.first->idx, sub, obj, rsl, vhis);
+                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
+            }
         }
     }
 
@@ -542,7 +546,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 vdict vhis;
                 insert_tmins(idx1, sub, tmins, vhis);
                 _update(idx1, sub, obj, rsl, vhis);
-                return simplify(obj, rsl, tyins, tmins, dep + 1);
+                return simplify(obj, rsl, tyins, tmins, is_unify, dep + 1);
             }
         }
     }
@@ -573,7 +577,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     Term *hs1, *hs2, *sub;
     std::vector<Term *> args1, args2;
 
-    if (!simplify(obj, rsl, _tyins, _tmins)) return false;
+    if (!simplify(obj, rsl, _tyins, _tmins, true)) return false;
     update_tyins(_tyins, tyins);
     vdict vhis;
     update_tmins(_tyins, _tmins, tmins, vhis);
