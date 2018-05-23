@@ -19,7 +19,7 @@ struct hterm_scope
     }
 };
 
-typedef std::unordered_map<std::pair<Term *, int>, Term *, hterm_scope> vdict;
+typedef std::unordered_map<Term *, Term *> vdict;
 typedef std::unordered_map<Term *, Term *> idict;
 
 Type *type_subst(int, Type *, Type *);
@@ -29,25 +29,23 @@ void insert_tyins(const ty_instor &, ty_instor &);
 void update_tyins(int, Type *, ty_instor &);
 void update_tyins(const ty_instor &, ty_instor &);
 
-
 Term *raw_inst(const ty_instor &, Term *);
 Term *inst(const ty_instor &, Term *, idict &);
 void update_tmins(const ty_instor &, tm_instor &, idict &);
 
-
-Term *vsubst(int, Term *, Term *, vdict &, int = 0);
-Term *vsubst(const tm_instor &, Term *, vdict &, int = 0);
+Term *vsubst(int, Term *, Term *, vdict &);
+Term *vsubst(const tm_instor &, Term *, vdict &);
 void insert_tmins(int, Term *, tm_instor &, vdict &);
 void update_tmins(int, Term *, tm_instor &, vdict &);
 void update_tmins(const tm_instor &, tm_instor &, vdict &);
 
-Term *mixsub(const ty_instor &, int, Term *, Term *, vdict &, int = 0);
-Term *mixsub(const ty_instor &, const tm_instor &, Term *, vdict &, int = 0);
+Term *mixsub(const ty_instor &, int, Term *, Term *, vdict &);
+Term *mixsub(const ty_instor &, const tm_instor &, Term *, vdict &);
 void update_tmins(const ty_instor &, int, Term *, tm_instor &, vdict &);
 void update_tmins(const ty_instor &, const tm_instor &, tm_instor &, vdict &);
 
 bool tfree_in(int, Type *);
-bool vfree_in(int, Term *);
+bool vfree_in(int, Term *); // int and Term * might be free bound vars
 
 
 void strip_comb(Term *, Term *&, std::vector<Term *> &);
@@ -72,10 +70,10 @@ bool is_eta(Term *);
 void bound_eta_norm(Term *&, Term *&);
 void remove_dummy_bvar(Term *&);
 
-Term *abstraction(int, Type *, Term *);
+Term *abstraction(int, Type *, Term *); // No free bound vars
 
 void get_free_types(Type *, std::unordered_set<int> &);
-void get_frees(Term *, std::unordered_set<int> &, std::unordered_set<Term *> &, int = 0);
+void get_frees(Term *, std::unordered_set<int> &, std::unordered_set<Term *> &);
 
 /*
  * Naive printers for map, vector

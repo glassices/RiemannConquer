@@ -27,7 +27,6 @@ struct Type
     void strip_fun(std::vector<Type *> &, Type *&);
 
     bool operator==(const Type &) const;
-    bool operator<(const Type &) const;
     struct hash
     {
         size_t operator()(const Type &) const;
@@ -52,7 +51,6 @@ struct Term
     Term *bod() const;
 
     bool operator==(const Term &) const;
-    bool operator<(const Term &) const;
     struct hash {
         size_t operator()(const Term &) const;
     };

@@ -54,7 +54,7 @@ bool type_unify(std::vector<std::pair<Type *, Type *>> &task, ty_instor &tyins)
     return true;
 }
 
-void _update(ty_instor &tyins, obj_type &obj, rsl_type &rsl, idict &ihis)
+void _update(const ty_instor &tyins, obj_type &obj, rsl_type &rsl, idict &ihis)
 {
     for (auto &e : obj) {
         e.first = inst(tyins, e.first, ihis);
@@ -72,7 +72,7 @@ void _update(int fv, Term *tm, obj_type &obj, rsl_type &rsl, vdict &vhis)
     for (auto &e : rsl) e.first = vsubst(fv, tm, e.first, vhis);
 }
 
-void _update(ty_instor &tyins, int fv, Term *tm, obj_type &obj, rsl_type &rsl, vdict &vhis)
+void _update(const ty_instor &tyins, int fv, Term *tm, obj_type &obj, rsl_type &rsl, vdict &vhis)
 {
     for (auto &e : obj) {
         e.first = mixsub(tyins, fv, tm, e.first, vhis);
@@ -93,23 +93,24 @@ Term *_find(Term *x, std::unordered_map<Term *, Term *> &pre)
     return root;
 }
 
-bool _subterm(Term *tm1, Term *tm2, int scope = 0)
+/*
+ * tm1 has no free bound vars
+ */
+bool _subterm(Term *tm1, Term *tm2)
 {
     /*
      * fv should be a free var
      */
     if (tm1->size > tm2->size) return false;
-    if (tm1->size == tm2->size) return kn::lift(tm1, scope) == tm2;
-    if (tm2->is_abs()) return _subterm(tm1, tm2->bod(), scope + 1);
+    if (tm1->size == tm2->size) return tm1 == tm2;
+    if (tm2->is_abs()) return _subterm(tm1, tm2->bod());
 
     Term *hs;
     std::vector<Term *> args;
 
     strip_comb(tm2, hs, args);
-    if (hs->idx >= scope + kn::HI_CONST_TERM) return false;
-    for (auto &arg : args)
-        if (_subterm(tm1, arg, scope))
-            return true;
+    if (hs->idx >= kn::HI_CONST_TERM) return false;
+    for (auto &arg : args) if (_subterm(tm1, arg)) return true;
     return false;
 }
 
@@ -127,10 +128,10 @@ void _imitate(Type *ty, Term *c, Term *&sub)
     auto n = static_cast<int>(tyl1.size());
 
     for (int i = 0; i < n; i++)
-        bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
+        bvars.push_back(kn::mk_var(tyl1[i], i - n));
     for (auto &e : tyl2)
-        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
-    sub = compose(tyl1, kn::mk_var(c->ty, c->idx + n), args);
+        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e)), bvars));
+    sub = compose(tyl1, c, args);
 }
 
 bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
@@ -144,14 +145,14 @@ bool _project(Type *ty, int k, Term *&sub, ty_instor &tyins)
     auto n = static_cast<int>(tyl1.size());
 
     for (int i = 0; i < n; i++)
-        bvars.push_back(kn::mk_var(tyl1[i], n - 1 - i));
+        bvars.push_back(kn::mk_var(tyl1[i], i - n));
 
     tyins.clear();
     if (!type_unify(apx1, apx2, tyins)) return false;
 
     for (auto &e : tyl2)
-        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e), n), bvars));
-    sub = raw_inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], n - 1 - k), args));
+        args.push_back(mk_lcomb(kn::new_term(kn::mk_lfun(tyl1, e)), bvars));
+    sub = raw_inst(tyins, compose(tyl1, kn::mk_var(tyl1[k], k - n), args));
     return true;
 }
 
@@ -165,6 +166,16 @@ void _delete_term_from_obj(obj_type &obj, std::vector<Term *> &tms, std::unorder
             prev = e2;
         }
     }
+}
+
+bool _close_check(Term *tm, int scope = 0)
+{
+    if (tm->is_comb())
+        return _close_check(tm->rator(), scope) && _close_check(tm->rand(), scope);
+    else if (tm->is_abs())
+        return _close_check(tm->bod(), scope + 1);
+    else
+        return tm->idx >= 0 || tm->idx + scope >= 0;
 }
 
 /*
@@ -224,16 +235,17 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         decompose(it->second, bvs2, hs2, args2);
 
         // move first rigid to the second
-        if (!kn::is_fvar(hs1, static_cast<int>(bvs1.size()))) {
+        if (!kn::is_fvar(hs1)) {
             std::swap(it->first, it->second);
             bvs1.swap(bvs2);
             std::swap(hs1, hs2);
             args1.swap(args2);
         }
 
-        if (kn::is_fvar(hs1, static_cast<int>(bvs1.size())))
+        if (kn::is_fvar(hs1))
             ++prev, ++it;
-        else if (hs1->idx - bvs1.size() != hs2->idx - bvs2.size())
+        else if ((hs1->idx >= 0 ? hs1->idx : -hs1->idx - static_cast<int>(bvs1.size()) - 1) !=
+                 (hs2->idx >= 0 ? hs2->idx : -hs2->idx - static_cast<int>(bvs2.size()) - 1))
             return false;
         else {
             if (bvs1.size() < bvs2.size()) {
@@ -245,7 +257,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 auto inc = static_cast<int>(bvs1.size() - bvs2.size());
                 for (auto &e : args2) e = kn::lift(e, inc);
                 for (int i = 0; i < inc; i++)
-                    args2.push_back(kn::mk_var(bvs1[bvs2.size() + i], inc - 1 - i));
+                    args2.push_back(kn::mk_var(bvs1[bvs2.size() + i], i - inc));
             }
 
             it = obj.erase_after(prev);
@@ -254,12 +266,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             }
         }
     }
-
-    /*
-    cout << "after decomposition" << endl;
-    for (auto &e : obj) cout << e << endl;
-    cout << "-----------------------" << endl;
-    */
 
     /*
      * Initialize disjoint union set
@@ -279,7 +285,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
         }
         pre[_find(e.first, pre)] = _find(e.second, pre);
     }
-    for (auto &e : pre) _find(e.first, pre);
+    for (auto &e : tms) _find(e, pre);
 
 
     /*
@@ -290,9 +296,9 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
 
         int c = it->second;
         decompose(it->first, bvs1, hs1, args1);
-        if (kn::is_fvar(hs1, static_cast<int>(bvs1.size())))
+        if (kn::is_fvar(hs1))
             ++prev, ++it;
-        else if (hs1->idx - bvs1.size() == c)
+        else if (hs1->idx == c)
             return false;
         else {
             it = rsl.erase_after(prev);
@@ -300,8 +306,13 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 it = rsl.emplace_after(prev, mk_nlabs(bvs1, e), c);
         }
     }
-    rsl.sort();
-    rsl.unique();
+    for (auto cnt = rsl.begin(); cnt != rsl.end(); ++cnt) {
+        auto prev = cnt, it = cnt;
+        for (++it; it != rsl.end(); ) {
+            if (*cnt == *it) it = rsl.erase_after(prev);
+            else ++prev, ++it;
+        }
+    }
 
     /*
      * x mc/mc ==> x := \u. y
@@ -309,7 +320,7 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     for (auto &e : rsl) if (e.first->is_comb()) {
         Term *x = e.first->rator(), *mc = e.first->rand();
         if (x->is_leaf() && mc->is_leaf() && mc->idx == e.second) {
-            Term *sub = kn::mk_abs(x->ty->dom(), kn::mk_var(x->ty->cod(), x->idx + 1));
+            Term *sub = kn::mk_abs(x->ty->dom(), kn::mk_var(x->ty->cod(), x->idx));
             vdict vhis;
             insert_tmins(x->idx, sub, tmins, vhis);
             _update(x->idx, sub, obj, rsl, vhis);
@@ -427,16 +438,15 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
      */
     for (auto &e1 : tms) {
         decompose(e1, bvs1, hs1, args1);
-        int idx1 = hs1->idx - static_cast<int>(bvs1.size());
+        int idx1 = hs1->idx;
         if (idx1 < kn::HI_CONST_TERM) continue;
 
         std::vector<int> idxes;
         bool ok = true;
         for (auto &arg : args1) {
             decompose(arg, bvs2, hs2, args2);
-            int idx = hs2->idx - static_cast<int>(bvs1.size() + bvs2.size());
-            if (idx >= -bvs1.size() && idx < kn::HI_CONST_TERM) {
-                if (idx >= 0) idxes.push_back(idx);
+            if (hs2->idx + static_cast<int>(bvs2.size()) < 0 || (hs2->idx >= 0 && hs2->idx < kn::HI_CONST_TERM)) {
+                if (hs2->idx >= 0) idxes.push_back(hs2->idx);
             }
             else {
                 ok = false;
@@ -449,10 +459,10 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             decompose(e2, bvs2, hs2, args2);
             if (hs2->ty->apex()->idx >= kn::HI_CONST_TYPE) continue;
 
-            int idx2 = hs2->idx - static_cast<int>(bvs2.size());
+            int idx2 = hs2->idx;
             if (idx2 >= 0 && idx2 < kn::HI_CONST_TERM && std::find(idxes.begin(), idxes.end(), idx2) == idxes.end()) {
                 Term *sub;
-                _imitate(hs1->ty, kn::mk_var(hs2->ty, idx2), sub);
+                _imitate(hs1->ty, hs2, sub);
                 vdict vhis;
                 insert_tmins(idx1, sub, tmins, vhis);
                 _update(idx1, sub, obj, rsl, vhis);
@@ -514,10 +524,10 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
         ty_instor tyins_save(tyins);
         tm_instor tmins_save(tmins);
 
-        int idx = hs1->idx - static_cast<int>(bvs1.size());
+        int idx = hs1->idx;
         // Imitation
-        if (kn::is_const(hs2, static_cast<int>(bvs2.size()))) {
-            _imitate(hs1->ty, kn::mk_var(hs2->ty, hs2->idx - static_cast<int>(bvs2.size())), sub);
+        if (kn::is_const(hs2)) {
+            _imitate(hs1->ty, hs2, sub);
             kn::save_maps();
             try {
                 vhis.clear();
@@ -575,7 +585,7 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     for (auto &tm : tm_set) {
         tm->ty->strip_fun(tyl, apx);
         if (mon.find(apx) == mon.end()) mon[apx] = kn::term_name_pool.gen();
-        Term *hs = kn::mk_var(apx, mon[apx] + static_cast<int>(tyl.size()));
+        Term *hs = kn::mk_var(apx, mon[apx]);
         sub = mk_labs(tyl, hs);
         vhis.clear();
         update_tmins(tm->idx, sub, tmins, vhis);

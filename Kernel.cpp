@@ -14,7 +14,7 @@ namespace kn {
     const int HI_CONST_TERM = 512;
 
     const int MEMORY_LIMIT = 1000;
-    const int SEARCH_DEPTH_LIMIT = 10;
+    const int SEARCH_DEPTH_LIMIT = 20;
 
 
     NamePool::NamePool(int _ptr) : ptr(_ptr) {}
@@ -43,21 +43,6 @@ namespace kn {
         ckpt.pop_back();
 
         aval.insert(aval.end(), used.begin() + n, used.end());
-        used.resize(n);
-    }
-
-    void NamePool::rec_ckpt(std::unordered_set<int> &pset) {
-        assert(!ckpt.empty());
-
-        auto n = ckpt.back();
-        ckpt.pop_back();
-
-        for (auto it = used.begin() + n; it != used.end(); ++it) {
-            if (pset.find(*it) != pset.end())
-                used[n++] = *it;
-            else
-                aval.push_back(*it);
-        }
         used.resize(n);
     }
 
@@ -121,24 +106,24 @@ namespace kn {
         return term_pointer_pool.insert(Term(2, ty, nullptr, nullptr, idx, 1));
     }
 
-    Term *new_term(Type *ty, int scope)
+    Term *new_term(Type *ty)
     {
-        return mk_var(ty, term_name_pool.gen() + scope);
+        return mk_var(ty, term_name_pool.gen());
     }
 
-    bool is_const(const Term *tm, int scope)
+    bool is_const(const Term *tm)
     {
-        return tm->idx >= scope && tm->idx < scope + HI_CONST_TERM;
+        return tm->idx >= 0 && tm->idx < HI_CONST_TERM;
     }
 
-    bool is_fvar(Term *tm, int scope)
+    bool is_fvar(Term *tm)
     {
-        return tm->idx >= scope + HI_CONST_TERM;
+        return tm->idx >= HI_CONST_TERM;
     }
 
-    bool is_bvar(Term *tm, int scope)
+    bool is_bvar(Term *tm)
     {
-        return tm->idx < scope;
+        return tm->idx < 0;
     }
 
     bool is_equal(Term *tm)
@@ -149,7 +134,7 @@ namespace kn {
     Term *lift(Term *tm, int inc, int scope)
     {
         if (tm->tag == 2)
-            return tm->idx < scope ? tm : mk_var(tm->ty, tm->idx + inc);
+            return tm->idx >= -scope ? tm : mk_var(tm->ty, tm->idx - inc);
         else {
             std::tuple<Term *, int, int> key(tm, inc, scope);
             auto it = lift_map.hmap.find(key);
@@ -162,11 +147,11 @@ namespace kn {
         }
     }
 
-    Term *mk_eq(Term *tm1, Term *tm2, int scope)
+    Term *mk_eq(Term *tm1, Term *tm2)
     {
         assert(tm1->ty == tm2->ty);
 
-        return mk_comb(mk_comb(mk_var(mk_fun(tm1->ty, mk_fun(tm2->ty, bool_ty)), scope), tm1), tm2);
+        return mk_comb(mk_comb(mk_var(mk_fun(tm1->ty, mk_fun(tm2->ty, bool_ty)), 0), tm1), tm2);
     }
 
     Type *const bool_ty = mk_atom(0);

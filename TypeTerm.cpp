@@ -70,14 +70,6 @@ bool Type::operator==(const Type &other) const
         return !other.tag && idx == other.idx;
 }
 
-bool Type::operator<(const Type &other) const
-{
-    if (tag)
-        return !other.tag || lptr < other.lptr || (lptr == other.lptr && rptr < other.rptr);
-    else
-        return !other.tag && idx < other.idx;
-}
-
 size_t Type::hash::operator()(const Type &t) const
 {
     if (t.tag)
@@ -130,16 +122,6 @@ bool Term::operator==(const Term &other) const
         return other.tag == 1 && p1 == other.p1 && ty == other.ty;
     else
         return other.tag == 2 && idx == other.idx && ty == other.ty;
-}
-
-bool Term::operator<(const Term &other) const
-{
-    if (tag == 0)
-        return other.tag > 0 || p1 < other.p1 || (p1 == other.p1 && p2 < other.p2);
-    else if (tag == 1)
-        return other.tag == 2 || (other.tag == 1 && (p1 < other.p1 || (p1 == other.p1 && ty < other.ty)));
-    else
-        return other.tag == 2 && (idx < other.idx || (idx == other.idx && ty < other.ty));
 }
 
 size_t Term::hash::operator()(const Term &t) const

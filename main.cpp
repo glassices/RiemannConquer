@@ -24,37 +24,35 @@ void init_logic()
 
     defs.push_back(nullptr); // 1 for (@)
 
-    Term *id = mk_abs(bool_ty, mk_var(bool_ty, 0));
+    Term *id = mk_abs(bool_ty, mk_var(bool_ty, -1));
     defs.push_back(mk_eq(id, id)); // 2 for (T)
 
     Type *fty = mk_fun(bool_ty, mk_fun(bool_ty, bool_ty));
-    f = mk_var(fty, 0);
-    tm = mk_abs(bool_ty, mk_abs(bool_ty, mk_eq(mk_abs(fty, mk_lcomb({f, mk_var(bool_ty, 2), mk_var(bool_ty, 1)})),
-                                               mk_abs(fty, mk_lcomb({f, mk_var(bool_ty, 5), mk_var(bool_ty, 5)})),
-                                               2)));
+    f = mk_var(fty, -1);
+    tm = mk_abs(bool_ty, mk_abs(bool_ty, mk_eq(mk_abs(fty, mk_lcomb({f, mk_var(bool_ty, -3), mk_var(bool_ty, -2)})),
+                                               mk_abs(fty, mk_lcomb({f, mk_var(bool_ty, 2), mk_var(bool_ty, 2)})))));
     defs.push_back(tm); // 3 for (/\)
 
-    tm = mk_abs(bool_ty, mk_abs(bool_ty, mk_eq(mk_lcomb({mk_var(fty, 5), mk_var(bool_ty, 1), mk_var(bool_ty, 0)}),
-                                               mk_var(bool_ty, 1),
-                                               2)));
+    tm = mk_abs(bool_ty, mk_abs(bool_ty, mk_eq(mk_lcomb({mk_var(fty, 3), mk_var(bool_ty, -2), mk_var(bool_ty, -1)}),
+                                               mk_var(bool_ty, -2))));
     defs.push_back(tm); // 4 for (==>)
 
     Type *aty = new_type();
     Type *pty = mk_fun(aty, bool_ty);
-    tm = mk_abs(pty, mk_eq(mk_var(pty, 0), mk_abs(aty, mk_var(bool_ty, 4)), 1));
+    tm = mk_abs(pty, mk_eq(mk_var(pty, -1), mk_abs(aty, mk_var(bool_ty, 2))));
     defs.push_back(tm); // 5 for (!)
 }
 
-Term *_expand(Term *tm, int c, Term *def, int scope)
+Term *_expand(Term *tm, int c, Term *def)
 {
     if (tm->is_comb())
-        return mk_ncomb(_expand(tm->rator(), c, def, scope), _expand(tm->rand(), c, def, scope));
+        return mk_ncomb(_expand(tm->rator(), c, def), _expand(tm->rand(), c, def));
     else if (tm->is_abs())
-        return mk_nabs(tm->ty->dom(), _expand(tm->bod(), c, def, scope + 1));
-    else if (tm->idx == scope + c) {
+        return mk_nabs(tm->ty->dom(), _expand(tm->bod(), c, def));
+    else if (tm->idx == c) {
         ty_instor tyins;
         type_unify(tm->ty, def->ty, tyins);
-        return raw_inst(tyins, lift(def, scope));
+        return raw_inst(tyins, def);
     }
     else
         return tm;
@@ -64,7 +62,7 @@ Term *expand(Term *tm)
 {
     for (int i = static_cast<int>(defs.size()) - 1; i >= 0; i--) {
         if (defs[i])
-            tm = _expand(tm, i, defs[i], 0);
+            tm = _expand(tm, i, defs[i]);
     }
     return tm;
 }
@@ -85,6 +83,11 @@ void logic_test()
 
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
     cout << p_imp_p << endl;
+
+    Type *boo = mk_fun(bool_ty, bool_ty);
+    Term *tm = mk_nabs(bool_ty, mk_ncomb(mk_var(boo, 1002), mk_var(bool_ty, -1)));
+    cout << tm << endl;
+
 }
 
 void searcher_test()
@@ -100,9 +103,12 @@ void searcher_test()
     */
 
     Term *p_imp_p = expand(mk_lcomb({mk_var(booo, 4), p, p}));
+    search(p_imp_p, 5);
+
+    /*
     Term *abs_p_imp_p = mk_eq(abstraction(p->idx, bool_ty, p_imp_p->rator()->rand()),
                               abstraction(p->idx, bool_ty, p_imp_p->rand()));
-    search(abs_p_imp_p, 6);
+    */
 
     /*
     Term *p_and_p = expand(mk_lcomb({mk_var(booo, 3), p, p}));
@@ -127,6 +133,7 @@ int main() {
     //logic_test();
 
     searcher_test();
+
 
     std::cout << "Hello, World!" << std::endl;
     return 0;

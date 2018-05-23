@@ -46,7 +46,6 @@ namespace kn
         int gen();
         void add_ckpt();
         void rec_ckpt();
-        void rec_ckpt(std::unordered_set<int> &);
     };
 
     extern NamePool type_name_pool;
@@ -67,8 +66,7 @@ namespace kn
             else {
                 T *cnt = new T(t);
                 pool.push_back(cnt);
-                hmap[t] = cnt;
-                return cnt;
+                return hmap[t] = cnt;
             }
         }
 
@@ -86,23 +84,6 @@ namespace kn
             for (auto it = pool.begin() + n; it != pool.end(); ++it) {
                 hmap.erase(**it);
                 delete *it;
-            }
-            pool.resize(n);
-        }
-
-        void rec_ckpt(std::unordered_set<T *> &pset)
-        {
-            assert(!ckpt.empty());
-
-            auto n = ckpt.back();
-            ckpt.pop_back();
-            for (auto it = pool.begin() + n; it != pool.end(); it++) {
-                if (pset.find(*it) != pset.end())
-                    pool[n++] = *it;
-                else {
-                    hmap.erase(**it);
-                    delete *it;
-                }
             }
             pool.resize(n);
         }
@@ -153,13 +134,13 @@ namespace kn
     Term *mk_comb(Term *, Term *);
     Term *mk_abs(Type *, Term *);
     Term *mk_var(Type *, int);
-    Term *new_term(Type *, int = 0);
-    bool is_const(const Term *, int = 0);
-    bool is_fvar(Term *, int = 0);
-    bool is_bvar(Term *, int = 0);
+    Term *new_term(Type *);
+    bool is_const(const Term *);
+    bool is_fvar(Term *);
+    bool is_bvar(Term *);
     bool is_equal(Term *);
     Term *lift(Term *, int, int = 0);
-    Term *mk_eq(Term *, Term *, int = 0);
+    Term *mk_eq(Term *, Term *);
 
     extern Type *const bool_ty;
 
