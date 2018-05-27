@@ -49,43 +49,55 @@ bool _naive_dfs(ProofGraph &state, int rem_node)
             ProofGraph next_state;
             if (rem_node > 0) {
                 next_state = state;
-                if (next_state.req_mp(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                    state = next_state;
-                    return true;
+                if (next_state.req_mp(_cores(todo, next_state.root))) {
+                    if (_naive_dfs(next_state, rem_node - 1)) {
+                        state = next_state;
+                        return true;
+                    }
                 }
 
                 next_state = state;
-                if (next_state.rmk_comb(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                    state = next_state;
-                    return true;
+                if (next_state.rmk_comb(_cores(todo, next_state.root))) {
+                    if (_naive_dfs(next_state, rem_node - 1)) {
+                        state = next_state;
+                        return true;
+                    }
                 }
 
                 next_state = state;
-                if (next_state.rdeduct(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                    state = next_state;
-                    return true;
+                if (next_state.rdeduct(_cores(todo, next_state.root))) {
+                    if (_naive_dfs(next_state, rem_node - 1)) {
+                        state = next_state;
+                        return true;
+                    }
                 }
 
                 next_state = state;
-                if (next_state.rabs(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node - 1)) {
-                    state = next_state;
-                    return true;
+                if (next_state.rabs(_cores(todo, next_state.root))) {
+                    if (_naive_dfs(next_state, rem_node - 1)) {
+                        state = next_state;
+                        return true;
+                    }
                 }
             }
 
             int ndeduct = _count_deduct(todo);
             for (int i = 0; i < ndeduct; i++) {
                 next_state = state;
-                if (next_state.rassume(_cores(todo, next_state.root), i) && _naive_dfs(next_state, rem_node)) {
-                    state = next_state;
-                    return true;
+                if (next_state.rassume(_cores(todo, next_state.root), i)) {
+                    if (_naive_dfs(next_state, rem_node)) {
+                        state = next_state;
+                        return true;
+                    }
                 }
             }
 
             next_state = state;
-            if (next_state.rrefl(_cores(todo, next_state.root)) && _naive_dfs(next_state, rem_node)) {
-                state = next_state;
-                return true;
+            if (next_state.rrefl(_cores(todo, next_state.root))) {
+                if (_naive_dfs(next_state, rem_node)) {
+                    state = next_state;
+                    return true;
+                }
             }
         } else {
             // all nodes are closed and do unification

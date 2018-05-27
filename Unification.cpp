@@ -334,6 +334,85 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     }
     for (auto &e : tms) _find(e, pre);
 
+    /*
+     * remove duplication in obj
+     */
+    obj.clear();
+    for (auto &e1 : tms) if (pre[e1] == e1) {
+            Term *prev = nullptr;
+            for (auto &e2 : tms) if (pre[e2] == e1) {
+                    if (prev != nullptr) obj.emplace_front(prev, e2);
+                    prev = e2;
+                }
+        }
+
+    /*
+     * Bind rule
+     */
+
+    for (auto &e1 : tms) {
+        if (e1->is_leaf() && kn::is_fvar(e1)) {
+            Term *tm = nullptr;
+            for (auto &e2 : tms)
+                if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2) && (!tm || e2->size < tm->size))
+                    tm = e2;
+            if (tm) {
+                vdict vhis;
+                insert_tmins(e1->idx, tm, tmins, vhis);
+                _update(e1->idx, tm, obj, rsl, vhis);
+                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
+            }
+        }
+    }
+    /*
+    for (auto &e1 : tms) {
+        if (e1->is_leaf() && kn::is_fvar(e1)) {
+            bool found = false;
+            for (auto &e2 : tms) {
+                if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2)) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                for (auto &e2 : tms) {
+                    if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2) && e2->is_leaf()) {
+                        vdict vhis;
+                        insert_tmins(e1->idx, e2, tmins, vhis);
+                        _update(e1->idx, e2, obj, rsl, vhis);
+                        return simplify(obj, rsl, tyins, tmins, is_unify, dep);
+                    }
+                }
+                obj_type obj_save(obj);
+                rsl_type rsl_save(rsl);
+                obj.clear();
+                rsl.clear();
+                bool is_first = true;
+                int ttt = 0;
+                for (auto &e2 : tms) if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2)) ttt++;
+                //if (ttt > 1) cout << e1 << endl;
+                for (auto &e2 : tms) {
+                    if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2)) {
+                        //if (ttt > 1) cout << e2 << endl;
+                        obj_type obj_cnt(obj_save);
+                        rsl_type rsl_cnt(rsl_save);
+                        vdict vhis;
+                        if (is_first) {
+                            insert_tmins(e1->idx, e2, tmins, vhis);
+                            is_first = false;
+                        }
+                        _update(e1->idx, e2, obj_cnt, rsl_cnt, vhis);
+                        obj.splice_after(obj.before_begin(), obj_cnt);
+                        rsl.splice_after(rsl.before_begin(), rsl_cnt);
+                    }
+                }
+                //if (ttt > 1) cout << "--------------------" << endl;
+                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
+            }
+        }
+    }
+    */
 
     /*
      * Deal with rsl
@@ -376,26 +455,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     }
 
     /*
-     * Bind rule
-     */
-
-    for (auto &e1 : tms) {
-        if (e1->is_leaf() && kn::is_fvar(e1)) {
-            Term *tm = nullptr;
-            for (auto &e2 : tms)
-                if (pre[e1] == pre[e2] && !vfree_in(e1->idx, e2) && (!tm || e2->size < tm->size))
-                    tm = e2;
-            if (tm) {
-                vdict vhis;
-                insert_tmins(e1->idx, tm, tmins, vhis);
-                _update(e1->idx, tm, obj, rsl, vhis);
-                return simplify(obj, rsl, tyins, tmins, is_unify, dep);
-            }
-        }
-    }
-
-
-    /*
      * Find long-term rigid-rigid pairs
      * An example that might cause infinite loop:
      * [x, x = x] and [x, x = (x = x)]
@@ -415,7 +474,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
                 return simplify(obj, rsl, tyins, tmins, is_unify, dep);
             }
     }
-
 
     /*
      * For every instance of [x mc, y mc] and {x/mc, y/mc}, we can deduce x = y
@@ -466,6 +524,8 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     }
 
 
+
+
     /*
      * x and x is a rigid-position of y
      * i.e., x and \u. u (x = y)
@@ -500,7 +560,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
             if (!idxes.empty()) {
                 Term *sub;
                 _eliminate(e.first, idxes, sub);
-                cout << e << ' ' << sub << endl << obj << ' ' << rsl << endl;
                 vdict vhis;
                 insert_tmins(e.first->idx, sub, tmins, vhis);
                 _update(e.first->idx, sub, obj, rsl, vhis);
@@ -552,17 +611,6 @@ bool simplify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmins, 
     }
 
 
-    /*
-     * remove duplication in obj
-     */
-    obj.clear();
-    for (auto &e1 : tms) if (pre[e1] == e1) {
-        Term *prev = nullptr;
-        for (auto &e2 : tms) if (pre[e2] == e1) {
-            if (prev != nullptr) obj.emplace_front(prev, e2);
-            prev = e2;
-        }
-    }
     return true;
 }
 
@@ -581,7 +629,6 @@ bool _term_unify(obj_type &obj, rsl_type &rsl, ty_instor &tyins, tm_instor &tmin
     update_tyins(_tyins, tyins);
     vdict vhis;
     update_tmins(_tyins, _tmins, tmins, vhis);
-
 
     std::pair<Term *, Term *> best;
     int ord, min_order = 1000000;
